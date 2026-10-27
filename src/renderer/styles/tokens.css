@@ -1,0 +1,120 @@
+/* ──────────────────────────────────────────────────────────────────────
+ * Design tokens, named after Ant Design's `default.less`:
+ * `--{component}-{property}-{modifier}` in kebab-case.
+ *
+ * Colours stay HSL triplets (no `hsl()` wrapper) so a token can carry an alpha
+ * channel: `hsl(var(--text-color) / 0.06)`. Everything visual in the app comes
+ * from this file — a component that needs a value adds a token here instead of
+ * inventing a literal.
+ * ────────────────────────────────────────────────────────────────────── */
+:root {
+  /* ── brand and status ────────────────────────────────────────────── */
+  --primary-color: 221.2 83.2% 53.3%;
+  --info-color: var(--primary-color);
+  --success-color: 142 71% 45%;
+  --warning-color: 38 92% 50%;
+  --error-color: 0 72% 51%;
+
+  /* ── surfaces ────────────────────────────────────────────────────── */
+  --body-background: 0 0% 100%;
+  --component-background: 0 0% 100%;
+  --popover-background: 0 0% 100%;
+  --input-background: 0 0% 96.5%;
+  --menu-background: 0 0% 96%;
+
+  /* ── text ────────────────────────────────────────────────────────── */
+  --heading-color: 222.2 84% 4.9%;
+  --text-color: 222.2 84% 4.9%;
+  --text-color-secondary: 215.4 16.3% 46.9%;
+  --disabled-color: hsl(var(--text-color) / 0.35);
+
+  /* ── borders and fills (base = component outline, split = inner rule) ── */
+  --border-color-base: hsl(var(--text-color) / 0.12);
+  --border-color-split: hsl(var(--text-color) / 0.07);
+  --fill-hover: hsl(var(--text-color) / 0.06);
+  --fill-chip: hsl(var(--text-color) / 0.045);
+
+  /* ── radius ──────────────────────────────────────────────────────── */
+  --border-radius-sm: 4px;
+  --border-radius-base: 8px;
+  --border-radius-lg: 12px;
+  --border-radius-xl: 14px;
+  --border-radius-pill: 999px;
+
+  /* ── type ────────────────────────────────────────────────────────── */
+  --font-size-xxs: 10.5px;
+  --font-size-xs: 11.5px;
+  --font-size-sm: 12.5px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-title: 22px;
+  --line-height-tight: 1.35;
+  --line-height-base: 1.55;
+
+  /* ── spacing: one 4px scale, used for padding, margin and gap ────── */
+  --padding-2xs: 2px;
+  --padding-xxs: 4px;
+  --padding-xs: 8px;
+  --padding-sm: 12px;
+  --padding-md: 16px;
+  --padding-lg: 24px;
+  /* the same scale under Ant Design's margin names, where it reads better */
+  --margin-2xs: var(--padding-2xs);
+  --margin-xxs: var(--padding-xxs);
+  --margin-xs: var(--padding-xs);
+  --margin-sm: var(--padding-sm);
+  --margin-md: var(--padding-md);
+  --margin-lg: var(--padding-lg);
+
+  /* ── heights ─────────────────────────────────────────────────────── */
+  --height-sm: 24px;
+  --height-base: 28px;
+  --height-lg: 32px;
+
+  /* ── app layout ──────────────────────────────────────────────────── */
+  --sidebar-width: 248px;
+  --sidebar-collapsed-width: 64px;
+  --mac-chrome-height: 28px;
+  --content-max: 1080px;
+  --page-gutter: 24px;
+  --page-bottom: 40px;
+
+  /* ── elevation and overlays ──────────────────────────────────────── */
+  --shadow-2: 0 3px 6px -4px hsl(0 0% 0% / 0.12), 0 6px 16px 0 hsl(0 0% 0% / 0.08);
+  --shadow-pop: 0 18px 48px hsl(0 0% 0% / 0.18);
+  --scrim: hsl(0 0% 0% / 0.28);
+  --zindex-modal: 1000;
+
+  /* ── motion ──────────────────────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --motion-duration-fast: 120ms;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --body-background: 240 4% 11%;
+    --component-background: 240 3% 14%;
+    --popover-background: 240 3% 14%;
+    --input-background: 240 3% 18%;
+    --menu-background: 240 4% 11%;
+
+    --heading-color: 210 20% 96%;
+    --text-color: 210 20% 96%;
+    --text-color-secondary: 220 8% 72%;
+    --disabled-color: hsl(var(--text-color) / 0.35);
+
+    --border-color-base: hsl(var(--text-color) / 0.16);
+    --border-color-split: hsl(var(--text-color) / 0.1);
+    --fill-hover: hsl(var(--text-color) / 0.08);
+    --fill-chip: hsl(var(--text-color) / 0.06);
+
+    --primary-color: 217.2 91.2% 59.8%;
+    --shadow-2: 0 3px 6px -4px hsl(0 0% 0% / 0.4), 0 6px 16px 0 hsl(0 0% 0% / 0.32);
+    --shadow-pop: 0 18px 48px hsl(0 0% 0% / 0.5);
+    --scrim: hsl(0 0% 0% / 0.5);
+
+    color-scheme: dark;
+  }
+}

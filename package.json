@@ -1,0 +1,57 @@
+{
+  "name": "harness-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local personal agent desktop app: Electron shell + pi agent loop",
+  "scripts": {
+    "dev": "vite build --logLevel warn && electron .",
+    "dev:ui": "vite",
+    "build:ui": "vite build",
+    "check": "tsc --noEmit",
+    "lint": "biome check",
+    "lint:fix": "biome check --write",
+    "smoke:electron": "vite build --logLevel warn && electron . --smoke",
+    "smoke": "node --experimental-strip-types --no-warnings scripts/smoke.ts",
+    "smoke:host": "node --experimental-strip-types --no-warnings scripts/smoke-host.ts",
+    "smoke:resume": "node --experimental-strip-types --no-warnings scripts/smoke-resume.ts",
+    "pack:dir": "vite build --logLevel warn && electron-packager . harness-agent --platform=darwin --arch=arm64 --out=dist --overwrite --prune --asar=false --ignore=\"^/dist($|/)\" --ignore=\"^/scripts($|/)\" --ignore=\"^/biome.json$\" --ignore=\"^/tsconfig.json$\" --ignore=\"^/vite.config.ts$\" --ignore=\"^/.gitignore$\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "tsc --noEmit && biome check && vitest run --coverage",
+    "coverage": "vitest run --coverage",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "1.3.0",
+    "electron-log": "^5.4.4",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zustand": "^5.0.16"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.3",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
+    "@electron/packager": "^20.3.0",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "@vitest/coverage-v8": "^5.0.5",
+    "electron": "^40.10.6",
+    "happy-dom": "^21.0.4",
+    "husky": "^9.1.7",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron"
+    ]
+  },
+  "main": "src/main/index.ts"
+}
