@@ -81,5 +81,7 @@
 - 发布形态另说：`pnpm smoke:electron` / `pack:dir` 用构建产物，dev 模式带 React 开发版和 HMR 运行时，不等同于打包后的样子。
 - 验证完**不要退出应用**：用户会接着用手上那个窗口。用 `nohup pnpm exec electron . &` 起，验完保持运行。
 - 收进程只认我们自己的二进制：`pgrep -f "node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"`。**不要 `pkill -f Electron`** —— 那个模式会连 VS Code、其他 Electron 应用一起杀掉。
-- 截图用 Electron 的 `webContents.capturePage()`（`--shot=path`），不要用 `screencapture` 抢焦点。
-- 交互验证用 `--remote-debugging-port` + CDP 驱动真实点击，不要靠读代码推断界面行为。
+- **验证界面就截图看**：`pnpm exec electron . --shot=/tmp/x.png --shot-size=980x720 [--shot-state=/tmp/state.js]`。截图走 `webContents.capturePage()`，不要用 `screencapture`（会抢焦点）。
+- **要什么状态就改状态，不要点过去**：`--shot-state` 在 dev 构建里执行一段脚本，`window.__harness` 暴露了 store，直接 `setState` 出「12 条会话 + 第一条正在回答」这种场景。数据被异步刷新覆盖时，顺手把 `refresh` 也换成固定返回。
+- 只有想确认「这个按钮是否真的接通」时才点一次；不要写长的交互脚本模拟整条流程。
+- 需要读 DOM 文本、模拟按键、切深色时才开 `--remote-debugging-port`，用完把 `Emulation` 清掉。

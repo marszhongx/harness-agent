@@ -78,7 +78,21 @@ const shotArg = process.argv.find((arg) => arg.startsWith("--shot="));
 const shotPath = shotArg ? shotArg.slice("--shot=".length) : null;
 /** `--shot-delay=ms` widens the window a driven check has to finish in. */
 const shotDelayArg = process.argv.find((arg) => arg.startsWith("--shot-delay="));
-const shotDelay = shotDelayArg ? Number(shotDelayArg.slice("--shot-delay=".length)) : 28_000;
+const shotDelay = shotDelayArg ? Number(shotDelayArg.slice("--shot-delay=".length)) : 8_000;
+/** `--shot-size=1440x900` renders at that content size instead of the saved one. */
+const shotSizeArg = process.argv.find((arg) => arg.startsWith("--shot-size="));
+const shotSize = (() => {
+  const match = /^(\d+)x(\d+)$/.exec(shotSizeArg?.slice("--shot-size=".length) ?? "");
+  return match ? { width: Number(match[1]), height: Number(match[2]) } : null;
+})();
+/**
+ * `--shot-state=path.js` runs a snippet in the window before the capture.
+ *
+ * A screenshot should show a state, not a sequence of clicks: the snippet sets
+ * store state (or anything else in the page) and the capture shows the result.
+ */
+const shotStateArg = process.argv.find((arg) => arg.startsWith("--shot-state="));
+const shotState = shotStateArg ? shotStateArg.slice("--shot-state=".length) : null;
 
 /**
  * One window, one set of files.
@@ -861,9 +875,21 @@ app.whenReady().then(async () => {
       app.focus({ steal: true });
       window?.moveTop();
     }
-    if (shotPath) {
+    if (shotPath && window) {
+      const target = window;
+      if (shotSize) target.setContentSize(shotSize.width, shotSize.height);
       setTimeout(async () => {
-        const image = await window?.webContents.capturePage();
+        if (shotState) {
+          try {
+            const result = await target.webContents.executeJavaScript(readFileSync(shotState, "utf8"));
+            logger.info("shot-state applied", { url: target.webContents.getURL(), result });
+            // Let React paint the state the snippet installed.
+            await new Promise((resolve) => setTimeout(resolve, 350));
+          } catch (error) {
+            logger.error("shot-state failed", error);
+          }
+        }
+        const image = await target.webContents.capturePage();
         if (image) writeFileSync(shotPath, image.toPNG());
         console.log(`shot -> ${shotPath}`);
         app.exit(0);
