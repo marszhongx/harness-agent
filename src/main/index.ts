@@ -27,11 +27,13 @@ import {
   nativeImage,
   nativeTheme,
   protocol,
+  screen,
   shell,
   Tray,
 } from "electron";
 import { AgentHost } from "../host/agent-host.ts";
-import { AppSettingsStore, type ThemeSetting } from "../host/app-settings.ts";
+import { AppSettingsStore, type ThemeSetting, type WindowState } from "../host/app-settings.ts";
+import { type Draft, Drafts } from "../host/drafts.ts";
 import { initLogger, logger, rollDaily } from "../host/logger.ts";
 import {
   addModel,
@@ -77,6 +79,24 @@ const shotPath = shotArg ? shotArg.slice("--shot=".length) : null;
 /** `--shot-delay=ms` widens the window a driven check has to finish in. */
 const shotDelayArg = process.argv.find((arg) => arg.startsWith("--shot-delay="));
 const shotDelay = shotDelayArg ? Number(shotDelayArg.slice("--shot-delay=".length)) : 28_000;
+
+/**
+ * One window, one set of files.
+ *
+ * Two instances would both write `sessions.json` and silently overwrite each
+ * other's list, so a second launch just raises the first one instead. The
+ * headless modes (smoke, screenshot) are exempt: they run beside the real app.
+ */
+if (!smoke && !shotPath) {
+  if (!app.requestSingleInstanceLock()) app.quit();
+  else
+    app.on("second-instance", () => {
+      if (!window) return;
+      if (window.isMinimized()) window.restore();
+      window.show();
+      window.focus();
+    });
+}
 
 const piCliPath = resolve(repoRoot, "node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js");
 const workerEntry = resolve(repoRoot, "src/host/worker.ts");
@@ -248,7 +268,7 @@ async function promptAgent(
   // Refuse the turn before anything is written: a conversation whose folder is
   // gone must not be recorded, and must not silently run somewhere else.
   const workspace = isDraft(sessionId)
-    ? (draft?.workspacePath ?? draftWorkspace ?? ensureDefaultWorkspace(defaultWorkspace))
+    ? drafts.workspacePath(ensureDefaultWorkspace(defaultWorkspace))
     : sessionWorkspacePath(sessionId);
   const problem = checkWorkspace(workspace);
   if (problem) {
@@ -343,10 +363,28 @@ function registerAppProtocol(): void {
   });
 }
 
+/** The saved rectangle, if it still lands on a screen that exists now. */
+function savedBounds(): WindowState | null {
+  const saved = appSettings.value.window;
+  if (!saved) return null;
+  const visible = screen.getAllDisplays().some((display) => {
+    const area = display.workArea;
+    return (
+      saved.x < area.x + area.width &&
+      saved.x + saved.width > area.x &&
+      saved.y < area.y + area.height &&
+      saved.y + saved.height > area.y
+    );
+  });
+  return visible ? saved : null;
+}
+
 function createWindow(): void {
+  const saved = savedBounds();
   window = new BrowserWindow({
-    width: 980,
-    height: 720,
+    width: saved?.width ?? 980,
+    height: saved?.height ?? 720,
+    ...(saved ? { x: saved.x, y: saved.y } : {}),
     titleBarStyle: "hiddenInset",
     backgroundColor: "#0f1115",
     webPreferences: {
@@ -356,9 +394,18 @@ function createWindow(): void {
       nodeIntegration: false,
     },
   });
+  if (saved?.maximized) window.maximize();
   void window.loadURL(devServerUrl ?? rendererUrl);
   window.show();
   window.focus();
+  window.on("close", () => {
+    // `getNormalBounds` is the size to restore to, not the maximised rectangle.
+    if (!window) return;
+    const bounds = window.getNormalBounds();
+    appSettings.update({
+      window: { ...bounds, maximized: window.isMaximized() },
+    });
+  });
   window.on("closed", () => {
     window = null;
   });
@@ -395,7 +442,7 @@ function registerIpc(): void {
       piSessionId: live?.piSessionId ?? null,
       sessionFile: live?.sessionFile ?? store.get(sessionId)?.sessionFile ?? null,
       model: live?.model ?? store.get(sessionId)?.model?.id ?? resolveDefaultModel()?.id ?? null,
-      workspacePath: sessionId ? sessionWorkspacePath(sessionId) : (draftWorkspace ?? defaultWorkspace()),
+      workspacePath: sessionId ? sessionWorkspacePath(sessionId) : drafts.workspacePath(defaultWorkspace()),
       working: workingSessions.has(sessionId),
       workerPid: live?.workerPid ?? null,
     };
@@ -452,7 +499,7 @@ function registerIpc(): void {
       await live.dispose().catch(() => undefined);
     }
     workingSessions.delete(id);
-    if (draft?.id === id) draft = null;
+    drafts.forget(id);
     if (entry.sessionFile) {
       try {
         rmSync(join(sessionsDir(), entry.sessionFile), { force: true });
@@ -476,9 +523,8 @@ function registerIpc(): void {
       properties: ["openDirectory", "createDirectory"],
       title: "选择这次对话使用的工作目录",
     });
-    if (!picked.canceled && picked.filePaths.length > 0) draftWorkspace = picked.filePaths[0];
-    if (draft) draft.workspacePath = draftWorkspace ?? defaultWorkspace();
-    return { workspacePath: draftWorkspace ?? defaultWorkspace() };
+    if (!picked.canceled && picked.filePaths.length > 0) drafts.chooseWorkspace(picked.filePaths[0]);
+    return { workspacePath: drafts.workspacePath(defaultWorkspace()) };
   });
   ipcMain.handle("agent:newSession", () => {
     // A fresh draft: id minted, nothing written to the index, nothing in the
@@ -572,9 +618,8 @@ function registerIpc(): void {
   ipcMain.handle("agent:setThinkingLevel", (_event, sessionId: string, level: string) => {
     if (typeof level !== "string") return false;
     // Recorded even without a worker; it is applied when the session next runs.
-    if (!sessionId || draft?.id === sessionId) {
-      draftChoice.thinkingLevel = level;
-      if (draft) draft.thinkingLevel = level;
+    if (!sessionId || drafts.holds(sessionId)) {
+      drafts.chooseThinkingLevel(sessionId, level);
     } else {
       store.setThinkingLevel(sessionId, level);
       hostFor(sessionId)?.setThinkingLevel(level);
@@ -584,9 +629,8 @@ function registerIpc(): void {
 
   ipcMain.handle("agent:setModel", (_event, sessionId: string, provider: string, model: string) => {
     if (typeof provider !== "string" || typeof model !== "string") return false;
-    if (!sessionId || draft?.id === sessionId) {
-      draftChoice.model = { provider, id: model };
-      if (draft) draft.model = { provider, id: model };
+    if (!sessionId || drafts.holds(sessionId)) {
+      drafts.chooseModel(sessionId, { provider, id: model });
     } else {
       store.setModel(sessionId, provider, model);
       hostFor(sessionId)?.setModel(provider, model);
@@ -615,58 +659,25 @@ function registerIpc(): void {
  * only becomes real when it has a message. So the app mints the id pi will use
  * and keeps it here; the first prompt promotes it into the index.
  */
-interface Draft {
-  id: string;
-  workspacePath: string;
-  /** Choices made before the conversation exists; applied when it is recorded. */
-  model: DefaultModel | null;
-  thinkingLevel?: string;
-}
+const drafts = new Drafts();
 
-let draft: Draft | null = null;
-/**
- * Folder picked on the new-conversation page before the conversation exists.
- *
- * A conversation's workspace is fixed once pi opens it, so the choice has to be
- * made before the first message; it waits here and is consumed by `startDraft`.
- */
-let draftWorkspace: string | null = null;
-/**
- * Choices made on the "new conversation" page before it has an id.
- *
- * The page exists without a session until its first message, so a model picked
- * there has nowhere to be stored yet; it waits here and is applied on promotion.
- */
-const draftChoice: { model?: DefaultModel; thinkingLevel?: string } = {};
-
+/** Mint the id pi will use for the conversation that does not exist yet. */
 function startDraft(): Draft {
-  const created: Draft = {
-    id: mintSessionId(),
-    workspacePath: draftWorkspace ?? defaultWorkspace(),
-    model: resolveDefaultModel(),
-  };
-  draft = created;
-  return created;
+  return drafts.begin(mintSessionId(), resolveDefaultModel(), defaultWorkspace());
 }
 
 function isDraft(sessionId: string): boolean {
-  return draft?.id === sessionId && !store.get(sessionId);
+  return drafts.holds(sessionId) && !store.get(sessionId);
 }
 
 /** Turn the draft into a real conversation, once it has something to say. */
 function promoteDraft(firstMessage: string): void {
-  const pending = draft;
-  if (!pending || store.get(pending.id)) return;
-  store.createWithId(pending.id, pending.workspacePath);
-  store.touch(pending.id, firstMessage);
-  const model = draftChoice.model ?? pending.model ?? resolveDefaultModel();
-  if (model) store.setModel(pending.id, model.provider, model.id);
-  const thinkingLevel = draftChoice.thinkingLevel ?? pending.thinkingLevel;
-  if (thinkingLevel) store.setThinkingLevel(pending.id, thinkingLevel);
-  delete draftChoice.model;
-  delete draftChoice.thinkingLevel;
-  draft = null;
-  draftWorkspace = null;
+  const promotion = drafts.promote(resolveDefaultModel());
+  if (!promotion || store.get(promotion.id)) return;
+  store.createWithId(promotion.id, promotion.workspacePath);
+  store.touch(promotion.id, firstMessage);
+  if (promotion.model) store.setModel(promotion.id, promotion.model.provider, promotion.model.id);
+  if (promotion.thinkingLevel) store.setThinkingLevel(promotion.id, promotion.thinkingLevel);
 }
 
 /** Models and skills are read by pi at startup, so a change is only live after a respawn. */
@@ -704,8 +715,7 @@ function setDefaultWorkspace(next: string | null): void {
 
 /** The model this session spawns with: its own, else the current default. */
 function chosenModel(sessionId: string): DefaultModel | null {
-  if (draft?.id === sessionId) return draft.model ?? resolveDefaultModel();
-  return store.get(sessionId)?.model ?? resolveDefaultModel();
+  return drafts.modelFor(sessionId) ?? store.get(sessionId)?.model ?? resolveDefaultModel();
 }
 
 /** Record a deliberate choice, so reopening the session keeps it. */

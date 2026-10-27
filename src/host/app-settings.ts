@@ -11,15 +11,31 @@ import { dirname } from "node:path";
 
 export type ThemeSetting = "system" | "light" | "dark";
 
+export interface WindowState {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  maximized: boolean;
+}
+
 export interface AppSettings {
   version: 1;
   theme: ThemeSetting;
   launchAtLogin: boolean;
   /** Absolute path; `null` means the app's own workspace directory. */
   workspacePath: string | null;
+  /** Where the window was last time; `null` until it has been closed once. */
+  window: WindowState | null;
 }
 
-const DEFAULTS: AppSettings = { version: 1, theme: "system", launchAtLogin: false, workspacePath: null };
+const DEFAULTS: AppSettings = {
+  version: 1,
+  theme: "system",
+  launchAtLogin: false,
+  workspacePath: null,
+  window: null,
+};
 
 export class AppSettingsStore {
   #path: string;
@@ -52,6 +68,21 @@ export class AppSettingsStore {
   }
 }
 
+/** A saved rectangle is only trusted when all four numbers survived. */
+function readWindow(value: unknown): WindowState | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<WindowState>;
+  const numbers = [candidate.x, candidate.y, candidate.width, candidate.height];
+  if (!numbers.every((item) => typeof item === "number" && Number.isFinite(item))) return null;
+  return {
+    x: candidate.x as number,
+    y: candidate.y as number,
+    width: candidate.width as number,
+    height: candidate.height as number,
+    maximized: candidate.maximized === true,
+  };
+}
+
 function read(path: string): AppSettings {
   try {
     const raw = JSON.parse(readFileSync(path, "utf8")) as Partial<AppSettings> | null;
@@ -62,6 +93,7 @@ function read(path: string): AppSettings {
         theme,
         launchAtLogin: raw.launchAtLogin === true,
         workspacePath: typeof raw.workspacePath === "string" && raw.workspacePath ? raw.workspacePath : null,
+        window: readWindow(raw.window),
       };
     }
   } catch {

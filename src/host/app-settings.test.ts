@@ -17,6 +17,7 @@ describe("AppSettingsStore", () => {
       theme: "system",
       launchAtLogin: false,
       workspacePath: null,
+      window: null,
     });
   });
 
@@ -29,6 +30,7 @@ describe("AppSettingsStore", () => {
       theme: "dark",
       launchAtLogin: true,
       workspacePath: "/tmp/ws",
+      window: null,
     });
   });
 
@@ -37,6 +39,21 @@ describe("AppSettingsStore", () => {
     const store = new AppSettingsStore(path);
     expect(store.value.theme).toBe("light");
     expect(store.value).not.toHaveProperty("surprise");
+  });
+
+  it("remembers where the window was, and drops a broken rectangle", () => {
+    const store = new AppSettingsStore(path);
+    store.update({ window: { x: 10, y: 20, width: 900, height: 700, maximized: false } });
+    expect(new AppSettingsStore(path).value.window).toEqual({
+      x: 10,
+      y: 20,
+      width: 900,
+      height: 700,
+      maximized: false,
+    });
+
+    writeFileSync(path, JSON.stringify({ version: 1, window: { x: 10, y: "soon" } }));
+    expect(new AppSettingsStore(path).value.window).toBeNull();
   });
 
   it("repairs an unknown theme and a non-string workspace", () => {
