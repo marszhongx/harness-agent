@@ -220,7 +220,7 @@
   align-items: center;
   gap: var(--padding-xxs);
   font-size: var(--font-size-xs);
-  color: hsl(var(--primary-color));
+  color: hsl(var(--primary-color-strong));
 }
 .session-dot {
   width: 5px;

@@ -55,6 +55,7 @@
 
 ## 图标
 
+- 品牌色跟 Alipay Design Advance 的规范：HSB 205/93/91（`--primary-color`），文字用同色相深一档（`--primary-color-strong`，白底 4.87:1）。
 - 唯一源文件是 `assets/icon.svg`；`pnpm icon` 用 macOS 自带工具（qlmanage + sips + iconutil）生成 `assets/icon.png`（开发时 Dock 用）和 `assets/icon.icns`（打包用）。没有构建步骤、没有额外依赖。
 - QuickLook 渲染 SVG 会铺白底，所以 `scripts/icon-alpha.py` 按圆角矩形把四角挖成透明 —— 否则 Dock 里会出现一块白板。画布按 Apple 的网格：1024 里 824×824 的方块、四周留 100；角的形状用超椭圆（|x/a|^5+|y/a|^5≤1）而不是圆弧 —— 这是 Apple 说的 continuous corner，圆弧在并排时看得出来扁。留白和圆角在 SVG 与 `build-icon.sh` 的参数里各写一次，改一处记得改另一处。
 - 改图标只改 SVG，然后跑 `pnpm icon`，两个产物一起更新；不要手改 PNG。
@@ -88,6 +89,6 @@
 - 验证完**不要退出应用**：用户会接着用手上那个窗口。用 `nohup pnpm exec electron . &` 起，验完保持运行。
 - 收进程只认我们自己的二进制：`pgrep -f "node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"`。**不要 `pkill -f Electron`** —— 那个模式会连 VS Code、其他 Electron 应用一起杀掉。
 - **验证界面就截图看**：`pnpm exec electron . --shot=/tmp/x.png --shot-size=980x720 [--shot-state=/tmp/state.js]`。截图走 `webContents.capturePage()`，不要用 `screencapture`（会抢焦点）。
-- **要什么状态就改状态，不要点过去**：`--shot-state` 在 dev 构建里执行一段脚本，`window.__harness` 暴露了 store，直接 `setState` 出「12 条会话 + 第一条正在回答」这种场景。数据被异步刷新覆盖时，顺手把 `refresh` 也换成固定返回。
+- **要什么状态就改状态，不要点过去**：`--shot-state` 在 dev 构建里执行一段脚本，`window.__harness` 暴露了 store，直接 `setState` 出「12 条会话 + 第一条正在回答」这种场景。脚本里先 `await` 一段时间（约 1.2s）让首次请求落地，再 setState：在飞的那次 refresh 结束后会 `set({ list })`，把先设的状态冲掉。
 - 只有想确认「这个按钮是否真的接通」时才点一次；不要写长的交互脚本模拟整条流程。
 - 需要读 DOM 文本、模拟按键、切深色时才开 `--remote-debugging-port`，用完把 `Emulation` 清掉。

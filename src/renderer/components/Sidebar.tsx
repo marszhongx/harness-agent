@@ -25,7 +25,7 @@ const NAV: Array<{ view: View; label: string; icon: string }> = [
   {
     view: "skills",
     label: "技能",
-    icon: "M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M12 2v4 M12 18v4 M2 12h4 M18 12h4 M5 5l3 3 M16 16l3 3 M19 5l-3 3 M8 16l-3 3",
+    icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M17.5 15.2L20.5 16.9 M12.0 18.4L12.0 21.8 M6.5 15.2L3.5 16.9 M6.5 8.8L3.5 7.1 M12.0 5.6L12.0 2.2 M17.5 8.8L20.5 7.1",
   },
 ];
 

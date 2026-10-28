@@ -737,7 +737,7 @@ select.fieldInput {
 }
 .model-item.current {
   background: hsl(var(--primary-color) / 0.12);
-  color: hsl(var(--primary-color));
+  color: hsl(var(--primary-color-strong));
 }
 .model-item .name {
   flex: 1;

@@ -2,7 +2,7 @@
   <!-- Apple's macOS grid: the tile is 824×824 inside the 1024 canvas, so every
        icon in the Dock reads the same size. -->
   <g transform="translate(100 100)">
-    <rect width="824" height="824" rx="185" fill="#2563EB"/>
+    <rect width="824" height="824" rx="185" fill="#108EE8"/>
     <!-- The harness: two brackets holding one prompt. -->
     <g transform="scale(0.804688)">
       <g fill="none" stroke="#FFFFFF" stroke-width="96" stroke-linecap="round" stroke-linejoin="round">

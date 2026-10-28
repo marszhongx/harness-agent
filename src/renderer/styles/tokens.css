@@ -9,7 +9,11 @@
  * ────────────────────────────────────────────────────────────────────── */
 :root {
   /* ── brand and status ────────────────────────────────────────────── */
-  --primary-color: 221.2 83.2% 53.3%;
+  /* Alipay's brand blue: HSB 205/93/91. `-strong` is the same hue and chroma one
+     step darker (HSB 205/93/75) so text on white clears 4.5:1; the brand value
+     alone is 3.5:1, which is fine for fills and icons, not for words. */
+  --primary-color: 205 86.9% 48.7%;
+  --primary-color-strong: 205 86.9% 40.1%;
   --info-color: var(--primary-color);
   --success-color: 142 71% 45%;
   --warning-color: 38 92% 50%;
@@ -110,7 +114,8 @@
     --fill-hover: hsl(var(--text-color) / 0.08);
     --fill-chip: hsl(var(--text-color) / 0.06);
 
-    --primary-color: 217.2 91.2% 59.8%;
+    --primary-color: 205 100% 57.5%;
+    --primary-color-strong: 205 100% 70%;
     --shadow-2: 0 3px 6px -4px hsl(0 0% 0% / 0.4), 0 6px 16px 0 hsl(0 0% 0% / 0.32);
     --shadow-pop: 0 18px 48px hsl(0 0% 0% / 0.5);
     --scrim: hsl(0 0% 0% / 0.5);
