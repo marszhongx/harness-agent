@@ -3,13 +3,13 @@
        icon in the Dock reads the same size. -->
   <g transform="translate(100 100)">
     <rect width="824" height="824" rx="185" fill="#108EE8"/>
-    <!-- The harness: two brackets holding one prompt. -->
-    <g transform="scale(0.804688)">
-      <g fill="none" stroke="#FFFFFF" stroke-width="96" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M404 268h-92a20 20 0 0 0-20 20v448a20 20 0 0 0 20 20h92"/>
-        <path d="M620 268h92a20 20 0 0 1 20 20v448a20 20 0 0 1-20 20h-92"/>
-        <path d="M466 428l84 84-84 84"/>
-      </g>
+    <!-- The harness: two brackets holding one prompt, laid out on the 824 grid as
+       a 560×560 square. Gaps stay above 40px (≈5% of the tile) so the parts do
+       not merge when the Dock draws the icon at 32px. -->
+    <g fill="none" stroke="#FFFFFF" stroke-width="88" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M290 176H176v472h114"/>
+      <path d="M534 176h114v472H534"/>
+      <path d="M420 312l100 100-100 100"/>
     </g>
   </g>
 </svg>

@@ -15,7 +15,7 @@ trap 'rm -rf "$tmp"' EXIT
 # or the Dock draws a white plate behind the tile.
 qlmanage -t -s 1024 -o "$tmp" assets/icon.svg >/dev/null 2>&1
 # Apple grid: 824×824 body inside 1024 (inset 100), continuous corners (n=5).
-python3 scripts/icon-alpha.py "$tmp/icon.svg.png" assets/icon.png 100 5
+python3 scripts/icon-alpha.py "$tmp/icon.svg.png" assets/icon.png 100 8
 
 mkdir -p "$tmp/icon.iconset"
 for spec in "16 16x16" "32 16x16@2x" "32 32x32" "64 32x32@2x" "128 128x128" \
