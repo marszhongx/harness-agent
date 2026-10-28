@@ -31,13 +31,6 @@
   gap: var(--padding-xs);
   min-width: 0;
 }
-.logo-mark {
-  width: 22px;
-  height: 22px;
-  border-radius: var(--border-radius-base);
-  background: hsl(var(--primary-color));
-  flex-shrink: 0;
-}
 .logo-name {
   font-weight: 600;
   font-size: var(--font-size-base);

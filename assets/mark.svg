@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 824 824" width="824" height="824">
+  <!-- The mark on its own, for the menu bar: black on transparent, no tile. -->
+  <g fill="none" stroke="#000000" stroke-width="96" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M404 268h-92a20 20 0 0 0-20 20v448a20 20 0 0 0 20 20h92"/>
+    <path d="M620 268h92a20 20 0 0 1 20 20v448a20 20 0 0 1-20 20h-92"/>
+    <path d="M466 428l84 84-84 84"/>
+  </g>
+</svg>
