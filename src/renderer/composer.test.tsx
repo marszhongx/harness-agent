@@ -127,6 +127,29 @@ describe("Composer", () => {
     await waitFor(() => expect(mock.api.setModel).toHaveBeenCalledWith(null, "amdx", "DeepSeek-V4-Flash"));
   });
 
+  it("shows the level a conversation will run with before any worker starts", async () => {
+    // New page: nothing has run, so the level comes from pi's default.
+    mount(
+      {
+        models,
+        sessions: [session],
+        defaultModel: { provider: "hifox", id: "glm-5.3-flash" },
+        defaultThinkingLevel: "max",
+      },
+      null,
+    );
+    expect(await screen.findByLabelText("思考等级 max")).toBeTruthy();
+  });
+
+  it("prefers the level recorded on the conversation", async () => {
+    mount({
+      models,
+      sessions: [{ ...session, thinkingLevel: "low" }],
+      defaultThinkingLevel: "max",
+    });
+    expect(await screen.findByLabelText("思考等级 low")).toBeTruthy();
+  });
+
   it("derives the levels from the catalogue: unsupported ones are disabled", async () => {
     const { mock } = mount({ models, sessions: [session] });
     await screen.findByText("glm-5.3-flash");

@@ -62,6 +62,8 @@ export interface MockOptions {
   models?: ModelInfo[];
   defaultModel?: { provider: string; id: string } | null;
   sessions?: SessionSummary[];
+  /** Thinking level pi would use when nobody picked one. */
+  defaultThinkingLevel?: string;
   status?: Partial<AgentStatus>;
   history?: TranscriptItem[];
   settings?: Partial<SettingsSnapshot>;
@@ -103,6 +105,7 @@ export function installMockAgent(options: MockOptions = {}): MockAgent {
     models: vi.fn(async () => options.models ?? []),
     setModel: vi.fn(async () => true),
     defaultModel: vi.fn(async () => options.defaultModel ?? null),
+    defaultThinkingLevel: vi.fn(async () => options.defaultThinkingLevel ?? "max"),
     setDefaultModel: vi.fn(async (provider: string, id: string) => ({ provider, id })),
     modelsList: vi.fn(async () => options.providers ?? []),
     saveProvider: vi.fn(async () => []),

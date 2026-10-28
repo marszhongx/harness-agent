@@ -48,6 +48,22 @@ export function readDefaultModel(env: NodeJS.ProcessEnv = process.env): DefaultM
   return null;
 }
 
+/**
+ * The thinking level a session starts with when nobody picked one. pi writes
+ * `defaultThinkingLevel` to the same file; its own default is `medium`.
+ */
+export function readDefaultThinkingLevel(env: NodeJS.ProcessEnv = process.env): string {
+  try {
+    const raw = JSON.parse(readFileSync(settingsPath(env), "utf8")) as { defaultThinkingLevel?: unknown };
+    if (typeof raw.defaultThinkingLevel === "string" && raw.defaultThinkingLevel) {
+      return raw.defaultThinkingLevel;
+    }
+  } catch {
+    // Missing or unreadable: pi's default applies.
+  }
+  return "medium";
+}
+
 /** Write `defaultProvider`/`defaultModel`, leaving the rest of the file alone. */
 export function writeDefaultModel(model: DefaultModel, env: NodeJS.ProcessEnv = process.env): void {
   const path = settingsPath(env);

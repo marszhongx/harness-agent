@@ -43,7 +43,12 @@ import {
   removeProvider,
   upsertProvider,
 } from "../host/models-config.ts";
-import { type DefaultModel, readDefaultModel, writeDefaultModel } from "../host/pi-settings.ts";
+import {
+  type DefaultModel,
+  readDefaultModel,
+  readDefaultThinkingLevel,
+  writeDefaultModel,
+} from "../host/pi-settings.ts";
 import type { DialogRequest, UiAnswer, WorkerToHost } from "../host/protocol.ts";
 import { mintSessionId } from "../host/session-id.ts";
 import { SessionStore } from "../host/session-store.ts";
@@ -498,6 +503,7 @@ function registerIpc(): void {
   ipcMain.handle("agent:listSessions", () =>
     store.list().map((entry) => ({ ...entry, working: workingSessions.has(entry.id) })),
   );
+  ipcMain.handle("agent:defaultThinkingLevel", () => readDefaultThinkingLevel());
   /**
    * Delete a conversation: its process, its index entry and its transcript.
    *

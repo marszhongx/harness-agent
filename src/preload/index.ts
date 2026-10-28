@@ -27,6 +27,8 @@ interface SessionSummary {
   sessionFile?: string;
   /** A turn is in flight for this conversation right now. */
   working?: boolean;
+  /** What this conversation last ran with, if it ever ran. */
+  thinkingLevel?: string;
 }
 
 interface ModelInfo {
@@ -95,6 +97,7 @@ const api = {
     ipcRenderer.invoke("agent:history", sessionId) as Promise<TranscriptItem[] | null>,
   models: () => ipcRenderer.invoke("agent:models") as Promise<ModelInfo[]>,
   defaultModel: () => ipcRenderer.invoke("agent:defaultModel") as Promise<{ provider: string; id: string }>,
+  defaultThinkingLevel: () => ipcRenderer.invoke("agent:defaultThinkingLevel") as Promise<string>,
   setDefaultModel: (provider: string, id: string) =>
     ipcRenderer.invoke("agent:setDefaultModel", provider, id) as Promise<{ provider: string; id: string }>,
   setModel: (sessionId: string | null, provider: string, model: string) =>

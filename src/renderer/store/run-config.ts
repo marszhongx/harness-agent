@@ -35,6 +35,8 @@ function put<K, V>(map: Map<K, V>, key: K, value: V): Map<K, V> {
 export type RunConfigState = {
   models: ModelInfo[];
   defaultModel: ModelRef | null;
+  /** What pi uses when a conversation has no level of its own. */
+  defaultThinkingLevel: string;
   /** Chosen model per conversation; falls back to the conversation's own, then the default. */
   chosen: Map<string, ModelRef>;
   thinking: Map<string, ThinkingState>;
@@ -59,6 +61,7 @@ export const useRunConfig = create<RunConfigState>((set, get) => {
   return {
     models: [],
     defaultModel: null,
+    defaultThinkingLevel: "", // replaced on first loadCatalog
     chosen: new Map(),
     thinking: new Map(),
     workspace: new Map(),
@@ -68,8 +71,12 @@ export const useRunConfig = create<RunConfigState>((set, get) => {
 
     loadCatalog: async () => {
       if (get().models.length > 0) return;
-      const [models, defaultModel] = await Promise.all([agent().models(), agent().defaultModel()]);
-      set({ models, defaultModel });
+      const [models, defaultModel, defaultThinkingLevel] = await Promise.all([
+        agent().models(),
+        agent().defaultModel(),
+        agent().defaultThinkingLevel(),
+      ]);
+      set({ models, defaultModel, defaultThinkingLevel });
     },
 
     setDefaultModel: async (provider, id) => {
@@ -131,6 +138,26 @@ export function useRunConfigSync(sessionId: string | null): void {
   useEffect(() => {
     void getRunConfig().sync(sessionId);
   }, [sessionId]);
+}
+
+/**
+ * The thinking level a conversation runs with: what pi reported for it, else what
+ * `sessions.json` recorded when it last ran, else pi's default. Without the last
+ * two the chip is blank until a worker starts.
+ */
+export function useCurrentThinking(sessionId: string | null): {
+  level: string | null;
+  levels: string[];
+} {
+  const reported = useRunConfig((state) => state.thinking.get(sessionId ?? DRAFT));
+  const fallback = useRunConfig((state) => state.defaultThinkingLevel);
+  useSessionsSync();
+  const list = useSessions((state) => state.list);
+  const entry = sessionId ? list.find((item) => item.id === sessionId) : undefined;
+  return {
+    level: reported?.level ?? entry?.thinkingLevel ?? (fallback || null),
+    levels: reported?.levels ?? [],
+  };
 }
 
 /** The model a conversation runs with: its pick, its own record, or the default. */

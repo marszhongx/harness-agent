@@ -1,7 +1,13 @@
 import { type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
 import { agent, type ModelInfo, type PromptImage } from "../lib/agent";
 import { supportedThinkingLevels, THINKING_LEVELS } from "../lib/thinking";
-import { getRunConfig, useCurrentModel, useRunConfig, useRunConfigSync } from "../store/run-config";
+import {
+  getRunConfig,
+  useCurrentModel,
+  useCurrentThinking,
+  useRunConfig,
+  useRunConfigSync,
+} from "../store/run-config";
 import ui from "../styles/ui.module.css";
 import { ChevronDownIcon, FolderIcon, PaperclipIcon, SendIcon, StopIcon, ThinkingIcon } from "./Icons";
 
@@ -26,7 +32,7 @@ interface ComposerProps {
 export default function Composer({ sessionId, busy, onSend }: ComposerProps) {
   const models = useRunConfig((state) => state.models);
   const defaultModel = useRunConfig((state) => state.defaultModel);
-  const thinking = useRunConfig((state) => state.getThinking(sessionId));
+  const thinking = useCurrentThinking(sessionId);
   const workspacePath = useRunConfig((state) => state.getWorkspace(sessionId));
   const currentModel = useCurrentModel(sessionId);
   useRunConfigSync(sessionId);

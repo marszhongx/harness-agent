@@ -33,6 +33,8 @@ export interface SessionSummary {
   model?: { provider: string; id: string };
   /** A turn is in flight for this conversation right now. */
   working?: boolean;
+  /** What this conversation last ran with, if it ever ran. */
+  thinkingLevel?: string;
 }
 
 export interface SettingsSnapshot {
@@ -100,6 +102,8 @@ export interface AgentApi {
   models: () => Promise<ModelInfo[]>;
   setModel: (sessionId: string | null, provider: string, model: string) => Promise<boolean>;
   defaultModel: () => Promise<{ provider: string; id: string } | null>;
+  /** Thinking level a conversation starts with on this machine. */
+  defaultThinkingLevel: () => Promise<string>;
   setDefaultModel: (provider: string, id: string) => Promise<{ provider: string; id: string } | null>;
   modelsList: () => Promise<ProviderSummary[]>;
   saveProvider: (
