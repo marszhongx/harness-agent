@@ -56,7 +56,7 @@
 ## 图标
 
 - 唯一源文件是 `assets/icon.svg`；`pnpm icon` 用 macOS 自带工具（qlmanage + sips + iconutil）生成 `assets/icon.png`（开发时 Dock 用）和 `assets/icon.icns`（打包用）。没有构建步骤、没有额外依赖。
-- QuickLook 渲染 SVG 会铺白底，所以 `scripts/icon-alpha.py` 按圆角矩形把四角挖成透明 —— 否则 Dock 里会出现一块白板。画布按 Apple 的网格：1024 里 824×824 的方块、圆角 185、四周留 100（这样 Dock 里和其他图标一样大）。留白和圆角在 SVG 与 `build-icon.sh` 的参数里各写一次，改一处记得改另一处。
+- QuickLook 渲染 SVG 会铺白底，所以 `scripts/icon-alpha.py` 按圆角矩形把四角挖成透明 —— 否则 Dock 里会出现一块白板。画布按 Apple 的网格：1024 里 824×824 的方块、四周留 100；角的形状用超椭圆（|x/a|^5+|y/a|^5≤1）而不是圆弧 —— 这是 Apple 说的 continuous corner，圆弧在并排时看得出来扁。留白和圆角在 SVG 与 `build-icon.sh` 的参数里各写一次，改一处记得改另一处。
 - 改图标只改 SVG，然后跑 `pnpm icon`，两个产物一起更新；不要手改 PNG。
 
 ## 样式规范

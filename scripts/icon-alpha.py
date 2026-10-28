@@ -5,7 +5,11 @@ macOS draws Dock icons as-is, so that white would show as a square plate behind
 the rounded tile. The shape is a plain rounded rectangle, so its coverage can be
 computed exactly instead of pulled from another renderer.
 
-usage: python3 scripts/icon-alpha.py <in.png> <out.png> [inset] [radius]
+usage: python3 scripts/icon-alpha.py <in.png> <out.png> [inset] [exponent]
+
+The body is a superellipse (`|x/a|^n + |y/a|^n <= 1`), which is what Apple's
+"continuous" corners are; circular corner arcs look slightly flat next to system
+icons. n=5 is visually indistinguishable at icon sizes.
 """
 
 import struct
@@ -67,20 +71,17 @@ def unfilter(raw, width, height):
     return rows
 
 
-def coverage(x, y, size, inset, radius, samples=4):
-    """Fraction of this pixel inside the rounded square, by supersampling."""
-    low, high = inset, size - inset
+def coverage(x, y, size, inset, exponent, samples=4):
+    """Fraction of this pixel inside the squircle, by supersampling."""
+    half = (size - 2 * inset) / 2
+    centre = size / 2
     hits = 0
     for sy in range(samples):
         for sx in range(samples):
             px = x + (sx + 0.5) / samples
             py = y + (sy + 0.5) / samples
-            if not (low <= px <= high and low <= py <= high):
-                continue
-            # Pull the point into the nearest corner circle.
-            cx = min(max(px, low + radius), high - radius)
-            cy = min(max(py, low + radius), high - radius)
-            if (px - cx) ** 2 + (py - cy) ** 2 <= radius ** 2:
+            inside = (abs(px - centre) / half) ** exponent + (abs(py - centre) / half) ** exponent
+            if inside <= 1:
                 hits += 1
     return hits / (samples * samples)
 
@@ -101,15 +102,15 @@ def write_png(path, width, height, rows):
 
 def main():
     source, target = sys.argv[1], sys.argv[2]
-    # Apple's grid: 824×824 tile in a 1024 canvas, corner radius 185.
+    # Apple's grid: 824×824 body in a 1024 canvas, continuous corners.
     inset = int(sys.argv[3]) if len(sys.argv) > 3 else 100
-    radius = int(sys.argv[4]) if len(sys.argv) > 4 else 185
+    exponent = float(sys.argv[4]) if len(sys.argv) > 4 else 5.0
     width, height, rows = read_png(source)
     if width != height:
         raise SystemExit("expected a square icon")
     for y, row in enumerate(rows):
         for x in range(width):
-            alpha = round(255 * coverage(x, y, width, inset, radius))
+            alpha = round(255 * coverage(x, y, width, inset, exponent))
             row[x * 4 + 3] = min(row[x * 4 + 3], alpha)
     write_png(target, width, height, rows)
 
