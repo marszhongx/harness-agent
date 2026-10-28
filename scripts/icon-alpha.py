@@ -110,8 +110,19 @@ def main():
         raise SystemExit("expected a square icon")
     for y, row in enumerate(rows):
         for x in range(width):
-            alpha = round(255 * coverage(x, y, width, inset, exponent))
-            row[x * 4 + 3] = min(row[x * 4 + 3], alpha)
+            share = coverage(x, y, width, inset, exponent)
+            if share <= 0:
+                row[x * 4 : x * 4 + 3] = b"\x00\x00\x00"
+                row[x * 4 + 3] = 0
+                continue
+            if share < 1:
+                # QuickLook painted the art on white, so a partly covered pixel is
+                # art mixed with white. Undo that mix, or the edge keeps a pale
+                # rim when the icon sits on a dark background.
+                for channel in range(3):
+                    value = round((row[x * 4 + channel] - 255 * (1 - share)) / share)
+                    row[x * 4 + channel] = max(0, min(255, value))
+            row[x * 4 + 3] = round(255 * share)
     write_png(target, width, height, rows)
 
 

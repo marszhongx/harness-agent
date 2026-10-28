@@ -26,10 +26,13 @@ done
 
 iconutil -c icns "$tmp/icon.iconset" -o assets/icon.icns
 
-# Menu bar: the mark alone, black on transparent, at 16 and 32 (Retina).
-qlmanage -t -s 512 -o "$tmp" assets/mark.svg >/dev/null 2>&1
-python3 scripts/glyph-alpha.py "$tmp/mark.svg.png" "$tmp/mark.png"
-sips -z 16 16 "$tmp/mark.png" --out src/main/trayTemplate.png >/dev/null
-sips -z 32 32 "$tmp/mark.png" --out "src/main/trayTemplate@2x.png" >/dev/null
+# Menu bar: the mark alone, black on transparent. Render at each size instead of
+# downscaling one big render, so the 1x/2x glyphs stay crisp.
+mkdir -p "$tmp/32"
+qlmanage -t -s 16 -o "$tmp/32" assets/mark.svg >/dev/null 2>&1  # 16pt (1x)
+python3 scripts/glyph-alpha.py "$tmp/32/mark.svg.png" src/main/trayTemplate.png
+mkdir -p "$tmp/64"
+qlmanage -t -s 32 -o "$tmp/64" assets/mark.svg >/dev/null 2>&1  # 16pt (2x)
+python3 scripts/glyph-alpha.py "$tmp/64/mark.svg.png" "src/main/trayTemplate@2x.png"
 
 echo "icon.png + icon.icns + tray icon rebuilt from assets/"

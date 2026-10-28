@@ -2,14 +2,16 @@
   <!-- Apple's macOS grid: the tile is 824×824 inside the 1024 canvas, so every
        icon in the Dock reads the same size. -->
   <g transform="translate(100 100)">
-    <rect width="824" height="824" rx="185" fill="#108EE8"/>
-    <!-- The harness: two brackets holding one prompt, laid out on the 824 grid as
-       a 560×560 square. Gaps stay above 40px (≈5% of the tile) so the parts do
-       not merge when the Dock draws the icon at 32px. -->
+    <!-- Full-bleed colour: the silhouette (squircle + 100px safe area) is cut by
+         scripts/icon-alpha.py, so art and mask can never disagree at the edge. -->
+    <rect width="824" height="824" fill="#108EE8"/>
+    <!-- The harness: two brackets holding one prompt. Laid out on the 824 grid as
+       a 560×560 square; the caret is centred by its ink (318..506 inside the
+       220..604 inner box), so the mark reads straight rather than leaning. -->
     <g fill="none" stroke="#FFFFFF" stroke-width="88" stroke-linecap="round" stroke-linejoin="round">
       <path d="M290 176H176v472h114"/>
       <path d="M534 176h114v472H534"/>
-      <path d="M420 312l100 100-100 100"/>
+      <path d="M362 312l100 100-100 100"/>
     </g>
   </g>
 </svg>

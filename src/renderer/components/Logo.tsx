@@ -10,7 +10,7 @@ export default function Logo({ size = 24 }: { size?: number }) {
       <g fill="none" stroke="#fff" strokeWidth="88" strokeLinecap="round" strokeLinejoin="round">
         <path d="M290 176H176v472h114" />
         <path d="M534 176h114v472H534" />
-        <path d="M420 312l100 100-100 100" />
+        <path d="M362 312l100 100-100 100" />
       </g>
     </svg>
   );
