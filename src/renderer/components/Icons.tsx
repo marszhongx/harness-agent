@@ -134,14 +134,18 @@ export const WarningIcon = glyph(
   </>,
 );
 
-/** Thinking level: a brain, because the level is how hard the model thinks. */
+/**
+ * Thinking level: a brain, drawn as one half mirrored across the seam so the two
+ * lobes are exactly symmetric. No inner gyri — at 16px they merge into a smear.
+ */
+const brainHalf = (
+  <path d="M12 5.2H9.4A3.6 3.6 0 0 0 5.9 8.8v.2A3 3 0 0 0 4.9 15a3 3 0 0 0 2.1 4.4A3.6 3.6 0 0 0 12 18.8z" />
+);
+
 export const ThinkingIcon = glyph(
   <>
-    <path d="M12 5.4v13.2" />
-    <path d="M12 5.4A3 3 0 0 0 6.5 6a3.6 3.6 0 0 0-2.2 5.4A3.6 3.6 0 0 0 5.9 17 3 3 0 0 0 12 18.6" />
-    <path d="M12 5.4A3 3 0 0 1 17.5 6a3.6 3.6 0 0 1 2.2 5.4A3.6 3.6 0 0 1 18.1 17 3 3 0 0 1 12 18.6" />
-    <path d="M9.2 9.7c1 0 1.7.7 1.7 1.6M9.2 14.3c1 0 1.7.7 1.7 1.6" />
-    <path d="M14.8 9.7c-1 0-1.7.7-1.7 1.6M14.8 14.3c-1 0-1.7.7-1.7 1.6" />
+    {brainHalf}
+    <g transform="scale(-1 1) translate(-24 0)">{brainHalf}</g>
   </>,
 );
 
@@ -154,12 +158,9 @@ export const ElectronIcon = glyph(
   </>,
 );
 
-export const NodeIcon = glyph(
-  <>
-    <path d="M12 3l7.5 4.3v9.4L12 21l-7.5-4.3V7.3z" />
-    <path d="M12 8.5l3.6 2.1v4.2L12 16.9l-3.6-2.1v-4.2z" />
-  </>,
-);
+/** The Node hexagon, sized to the same 18-unit box as Electron's rings so the
+ *  two sit level in a row. */
+export const NodeIcon = glyph(<path d="M12 3.5l7.8 4.5v8L12 20.5l-7.8-4.5v-8z" />);
 
 /** The stop button's mark: a filled square, not a stroke. */
 export function StopIcon({ size = 14 }: IconProps) {

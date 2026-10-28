@@ -27,14 +27,18 @@ def read_png(path):
         chunk = data[pos + 8 : pos + 8 + length]
         if kind == b"IHDR":
             width, height, depth, color_type = struct.unpack(">IIBB", chunk[:10])
-            if (depth, color_type) != (8, 6):
-                raise SystemExit("expected 8-bit RGBA input")
+            if depth != 8 or color_type not in (2, 6):
+                raise SystemExit("expected 8-bit RGB or RGBA input")
         elif kind == b"IDAT":
             idat += chunk
         elif kind == b"IEND":
             break
         pos += 12 + length
-    return width, height, unfilter(zlib.decompress(idat), width, height)
+    rows = unfilter(zlib.decompress(idat), width, height, 4 if color_type == 6 else 3)
+    if color_type == 2:
+        # Expand to RGBA so the callers only deal with one layout.
+        rows = [bytearray(b"".join(bytes(row[i : i + 3]) + b"\xff" for i in range(0, len(row), 3))) for row in rows]
+    return width, height, rows
 
 
 def paeth(a, b, c):
@@ -45,8 +49,8 @@ def paeth(a, b, c):
     return b if pb <= pc else c
 
 
-def unfilter(raw, width, height):
-    bpp, stride = 4, width * 4
+def unfilter(raw, width, height, bpp=4):
+    stride = width * bpp
     rows = []
     prev = bytearray(stride)
     pos = 0
