@@ -11,8 +11,10 @@ cd "$(dirname "$0")/.."
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
+# QuickLook renders on white; the rounded corners have to become transparent,
+# or the Dock draws a white plate behind the tile.
 qlmanage -t -s 1024 -o "$tmp" assets/icon.svg >/dev/null 2>&1
-cp "$tmp/icon.svg.png" assets/icon.png
+python3 scripts/icon-alpha.py "$tmp/icon.svg.png" assets/icon.png 230
 
 mkdir -p "$tmp/icon.iconset"
 for spec in "16 16x16" "32 16x16@2x" "32 32x32" "64 32x32@2x" "128 128x128" \

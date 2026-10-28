@@ -56,6 +56,7 @@
 ## 图标
 
 - 唯一源文件是 `assets/icon.svg`；`pnpm icon` 用 macOS 自带工具（qlmanage + sips + iconutil）生成 `assets/icon.png`（开发时 Dock 用）和 `assets/icon.icns`（打包用）。没有构建步骤、没有额外依赖。
+- QuickLook 渲染 SVG 会铺白底，所以 `scripts/icon-alpha.py` 按圆角矩形把四角挖成透明 —— 否则 Dock 里会出现一块白板。改圆角半径时两处一起改。
 - 改图标只改 SVG，然后跑 `pnpm icon`，两个产物一起更新；不要手改 PNG。
 
 ## 样式规范
