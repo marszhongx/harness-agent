@@ -13,15 +13,15 @@ namespace = {"__name__": "icon"}
 exec(open("scripts/icon-alpha.py").read().replace("main()\n", ""), namespace)
 
 # The mark on a 32-unit grid: two brackets and a square, as filled rounded rects.
-# A 20×20 mark centred on the 32-unit grid: the menu bar draws it at 16pt, so it
-# has to read as one compact square, not a wide one.
+# A 26×26 mark on the 32-unit grid: the file is drawn at 16pt, so this fills 13pt
+# of the 16pt slot — the same height as the menu-bar icons next to it.
 RECTS = [
-    (6, 6, 4, 20, 1.4),
-    (6, 6, 6, 4, 1.4),
-    (6, 22, 6, 4, 1.4),
-    (22, 6, 4, 20, 1.4),
-    (20, 6, 6, 4, 1.4),
-    (20, 22, 6, 4, 1.4),
+    (3, 3, 4, 26, 1.4),
+    (3, 3, 7, 4, 1.4),
+    (3, 25, 7, 4, 1.4),
+    (25, 3, 4, 26, 1.4),
+    (22, 3, 7, 4, 1.4),
+    (22, 25, 7, 4, 1.4),
     (13, 13, 6, 6, 1.1),
 ]
 
