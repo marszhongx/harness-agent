@@ -93,6 +93,8 @@ describe("logger", () => {
   it("leaves today's file alone", () => {
     const now = new Date(2026, 9, 27, 12, 0, 0);
     writeFileSync(join(dir, "application.log"), "today\n");
+    // The file's mtime is what decides its day, so pin it to `now`.
+    utimesSync(join(dir, "application.log"), now, now);
 
     rollDaily(dir, now, 7);
 

@@ -35,7 +35,7 @@
   width: 22px;
   height: 22px;
   border-radius: var(--border-radius-base);
-  background: linear-gradient(140deg, hsl(var(--primary-color)), hsl(var(--primary-color) / 0.55));
+  background: hsl(var(--primary-color));
   flex-shrink: 0;
 }
 .logo-name {

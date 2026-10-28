@@ -856,6 +856,14 @@ app.whenReady().then(async () => {
       workspace: defaultWorkspace(),
       logFile,
     });
+    // Without this the Dock shows Electron's own icon during development.
+    if (process.platform === "darwin" && app.dock) {
+      const iconPath = resolve(repoRoot, "assets/icon.png");
+      if (existsSync(iconPath)) {
+        app.dock.setIcon(iconPath);
+        logger.info("dock icon set", { iconPath });
+      }
+    }
     applyTheme(appSettings.value.theme);
     applyLaunchAtLogin(appSettings.value.launchAtLogin);
     registerAppProtocol();

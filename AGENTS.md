@@ -53,6 +53,11 @@
 - `entry.sessionFile` 只在文件真实存在时记录（pi 会提前报一条计划路径）。
 - 历史来自 transcript 文件的活动分支（从最后一条沿 `parentId` 回溯），不是「所有行按顺序」。
 
+## 图标
+
+- 唯一源文件是 `assets/icon.svg`；`pnpm icon` 用 macOS 自带工具（qlmanage + sips + iconutil）生成 `assets/icon.png`（开发时 Dock 用）和 `assets/icon.icns`（打包用）。没有构建步骤、没有额外依赖。
+- 改图标只改 SVG，然后跑 `pnpm icon`，两个产物一起更新；不要手改 PNG。
+
 ## 样式规范
 
 - `src/renderer/styles/tokens.css` 是唯一的取值来源，命名照 Ant Design 的 `default.less`（`--primary-color`、`--text-color-secondary`、`--border-color-base`、`--border-color-split`、`--padding-md`、`--font-size-sm`、`--border-radius-lg`、`--height-base`、`--shadow-2`、`--zindex-modal`）。颜色存 HSL 三元组，可以带透明度：`hsl(var(--text-color) / 0.06)`。
