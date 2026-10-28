@@ -36,6 +36,9 @@
       "style": {
         "noNonNullAssertion": "warn",
         "useNodejsImportProtocol": "error"
+      },
+      "a11y": {
+        "noSvgWithoutTitle": "off"
       }
     }
   },
