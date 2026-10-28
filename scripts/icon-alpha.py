@@ -5,7 +5,7 @@ macOS draws Dock icons as-is, so that white would show as a square plate behind
 the rounded tile. The shape is a plain rounded rectangle, so its coverage can be
 computed exactly instead of pulled from another renderer.
 
-usage: python3 scripts/icon-alpha.py <in.png> <out.png> [radius]
+usage: python3 scripts/icon-alpha.py <in.png> <out.png> [inset] [radius]
 """
 
 import struct
@@ -67,16 +67,19 @@ def unfilter(raw, width, height):
     return rows
 
 
-def coverage(x, y, size, radius, samples=4):
+def coverage(x, y, size, inset, radius, samples=4):
     """Fraction of this pixel inside the rounded square, by supersampling."""
+    low, high = inset, size - inset
     hits = 0
     for sy in range(samples):
         for sx in range(samples):
             px = x + (sx + 0.5) / samples
             py = y + (sy + 0.5) / samples
+            if not (low <= px <= high and low <= py <= high):
+                continue
             # Pull the point into the nearest corner circle.
-            cx = min(max(px, radius), size - radius)
-            cy = min(max(py, radius), size - radius)
+            cx = min(max(px, low + radius), high - radius)
+            cy = min(max(py, low + radius), high - radius)
             if (px - cx) ** 2 + (py - cy) ** 2 <= radius ** 2:
                 hits += 1
     return hits / (samples * samples)
@@ -98,13 +101,15 @@ def write_png(path, width, height, rows):
 
 def main():
     source, target = sys.argv[1], sys.argv[2]
-    radius = int(sys.argv[3]) if len(sys.argv) > 3 else 230
+    # Apple's grid: 824×824 tile in a 1024 canvas, corner radius 185.
+    inset = int(sys.argv[3]) if len(sys.argv) > 3 else 100
+    radius = int(sys.argv[4]) if len(sys.argv) > 4 else 185
     width, height, rows = read_png(source)
     if width != height:
         raise SystemExit("expected a square icon")
     for y, row in enumerate(rows):
         for x in range(width):
-            alpha = round(255 * coverage(x, y, width, radius))
+            alpha = round(255 * coverage(x, y, width, inset, radius))
             row[x * 4 + 3] = min(row[x * 4 + 3], alpha)
     write_png(target, width, height, rows)
 
