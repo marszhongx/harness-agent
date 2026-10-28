@@ -406,6 +406,9 @@ function createWindow(): void {
       contextIsolation: true,
       sandbox: false,
       nodeIntegration: false,
+      // Screenshot mode runs behind the real app; without this Chromium stops
+      // painting an occluded window and `capturePage` returns a stale frame.
+      backgroundThrottling: false,
     },
   });
   if (saved?.maximized) window.maximize();

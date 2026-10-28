@@ -3,7 +3,7 @@ import { agent, type ModelInfo, type PromptImage } from "../lib/agent";
 import { supportedThinkingLevels, THINKING_LEVELS } from "../lib/thinking";
 import { getRunConfig, useCurrentModel, useRunConfig, useRunConfigSync } from "../store/run-config";
 import ui from "../styles/ui.module.css";
-import { ThinkingIcon } from "./Icons";
+import { ChevronDownIcon, FolderIcon, PaperclipIcon, SendIcon, StopIcon, ThinkingIcon } from "./Icons";
 
 const IMAGE_TYPES = "image/png,image/jpeg,image/webp,image/gif";
 
@@ -153,19 +153,7 @@ export default function Composer({ sessionId, busy, onSend }: ComposerProps) {
                 event.currentTarget.value = "";
               }}
             />
-            <svg
-              aria-hidden="true"
-              focusable="false"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            >
-              <path d="M21 12.5 12.5 21a5 5 0 0 1-7-7l8-8a3.5 3.5 0 0 1 5 5l-8 8a2 2 0 0 1-3-3l7-7" />
-            </svg>
+            <PaperclipIcon size={15} />
           </label>
 
           <button
@@ -179,7 +167,7 @@ export default function Composer({ sessionId, busy, onSend }: ComposerProps) {
           >
             <ThinkingIcon />
             {thinking.level ? <span>{thinking.level}</span> : null}
-            <Chevron />
+            <ChevronDownIcon size={14} />
           </button>
 
           <button
@@ -190,7 +178,7 @@ export default function Composer({ sessionId, busy, onSend }: ComposerProps) {
             onClick={() => setMenu(menu === "model" ? null : "model")}
           >
             <span>{modelLabel ?? "未选择模型"}</span>
-            <Chevron />
+            <ChevronDownIcon size={14} />
           </button>
 
           <button
@@ -199,33 +187,7 @@ export default function Composer({ sessionId, busy, onSend }: ComposerProps) {
             disabled={!busy && (!currentModel || (text.trim().length === 0 && images.length === 0))}
             aria-label="发送"
           >
-            {busy ? (
-              <svg
-                aria-hidden="true"
-                focusable="false"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <rect x="7" y="7" width="10" height="10" rx="2" />
-              </svg>
-            ) : (
-              <svg
-                aria-hidden="true"
-                focusable="false"
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M5 12h14M13 6l6 6-6 6" />
-              </svg>
-            )}
+            {busy ? <StopIcon size={14} /> : <SendIcon size={16} />}
           </button>
         </div>
       </form>
@@ -266,24 +228,6 @@ export default function Composer({ sessionId, busy, onSend }: ComposerProps) {
         <WorkspaceChip sessionId={sessionId} workspacePath={workspacePath} />
       </div>
     </div>
-  );
-}
-
-function Chevron() {
-  return (
-    <svg
-      aria-hidden="true"
-      focusable="false"
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
   );
 }
 
@@ -478,19 +422,7 @@ function WorkspaceChip({
         void agent().revealPath(workspacePath);
       }}
     >
-      <svg
-        aria-hidden="true"
-        focusable="false"
-        width="12"
-        height="12"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      >
-        <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      </svg>
+      <FolderIcon size={13} />
       <span>{name}</span>
     </button>
   );

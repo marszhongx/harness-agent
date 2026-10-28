@@ -82,9 +82,8 @@
   background: hsl(var(--text-color) / 0.06);
   color: hsl(var(--text-color));
 }
-.nav-item .icon {
-  width: 16px;
-  height: 16px;
+/* Icons size themselves; the row only stops them from being squashed. */
+.nav-item svg {
   flex-shrink: 0;
 }
 .nav-item .label {

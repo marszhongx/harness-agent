@@ -4,7 +4,17 @@ import { getSessions, useSessions, useSessionsSync } from "../store/sessions";
 import { useTranscripts } from "../store/transcript";
 import layout from "../styles/layout.module.css";
 import ConfirmDialog from "./ConfirmDialog";
-import { TrashIcon } from "./Icons";
+import {
+  AgentsIcon,
+  HistoryIcon,
+  ModelsIcon,
+  PanelIcon,
+  PlusIcon,
+  ScheduleIcon,
+  SettingsIcon,
+  SkillsIcon,
+  TrashIcon,
+} from "./Icons";
 
 export type View = "chat" | "models" | "skills" | "settings";
 
@@ -19,19 +29,15 @@ interface SidebarProps {
   onSessionDeleted: (id: string) => void;
 }
 
-const NAV: Array<{ view: View; label: string; icon: string }> = [
-  { view: "models", label: "模型", icon: "M4 4h16v16H4z M9 9h6v6H9z" },
-  {
-    view: "skills",
-    label: "技能",
-    icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M17.5 15.2L20.5 16.9 M12.0 18.4L12.0 21.8 M6.5 15.2L3.5 16.9 M6.5 8.8L3.5 7.1 M12.0 5.6L12.0 2.2 M17.5 8.8L20.5 7.1",
-  },
+const NAV: Array<{ view: View; label: string; Icon: typeof ModelsIcon }> = [
+  { view: "models", label: "模型", Icon: ModelsIcon },
+  { view: "skills", label: "技能", Icon: SkillsIcon },
 ];
 
 /** Announced but not built yet: shown so the shape of the app is visible. */
-const SOON: Array<{ label: string; icon: string }> = [
-  { label: "Agents", icon: "M4 7h16v12H4z M12 7V4 M9 12h.01 M15 12h.01" },
-  { label: "定时任务", icon: "M12 7v5l3 2 M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z" },
+const SOON: Array<{ label: string; Icon: typeof AgentsIcon }> = [
+  { label: "Agents", Icon: AgentsIcon },
+  { label: "定时任务", Icon: ScheduleIcon },
 ];
 
 /** Collapsible sidebar: navigation plus the conversation list. */
@@ -108,20 +114,7 @@ export default function Sidebar({
           title={collapsed ? "展开侧边栏" : "收起侧边栏"}
           aria-label={collapsed ? "展开侧边栏" : "收起侧边栏"}
         >
-          <svg
-            aria-hidden="true"
-            focusable="false"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          >
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-            <path d="M9 3v18" />
-          </svg>
+          <PanelIcon size={18} />
         </button>
       </div>
 
@@ -132,18 +125,7 @@ export default function Sidebar({
           aria-current={onNewPage ? "page" : undefined}
           onClick={onNewConversation}
         >
-          <svg
-            aria-hidden="true"
-            focusable="false"
-            className={layout.icon}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
+          <PlusIcon />
           <span className={layout.label}>新对话</span>
         </button>
         {NAV.map((item) => (
@@ -154,18 +136,7 @@ export default function Sidebar({
             aria-current={view === item.view ? "page" : undefined}
             onClick={() => onNavigate(item.view)}
           >
-            <svg
-              aria-hidden="true"
-              focusable="false"
-              className={layout.icon}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            >
-              <path d={item.icon} />
-            </svg>
+            <item.Icon />
             <span className={layout.label}>{item.label}</span>
           </button>
         ))}
@@ -178,18 +149,7 @@ export default function Sidebar({
             disabled
             title="即将推出"
           >
-            <svg
-              aria-hidden="true"
-              focusable="false"
-              className={layout.icon}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            >
-              <path d={item.icon} />
-            </svg>
+            <item.Icon />
             <span className={layout.label}>{item.label}</span>
             <span className={layout.tag}>Coming soon</span>
           </button>
@@ -204,21 +164,7 @@ export default function Sidebar({
               title="最近会话"
               onClick={() => setFlyout((open) => !open)}
             >
-              <svg
-                aria-hidden="true"
-                focusable="false"
-                className={layout.icon}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M3 12a9 9 0 1 0 3-6.7" />
-                <path d="M3 4v4.5h4.5" />
-                <path d="M12 8v4.3l3 1.8" />
-              </svg>
+              <HistoryIcon />
             </button>
 
             {flyout ? (
@@ -270,19 +216,7 @@ export default function Sidebar({
           aria-current={view === "settings" ? "page" : undefined}
           onClick={() => onNavigate("settings")}
         >
-          <svg
-            aria-hidden="true"
-            focusable="false"
-            className={layout.icon}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          >
-            <circle cx="12" cy="12" r="3" />
-            <path d="M4 12h2M18 12h2M12 4v2M12 18v2" />
-          </svg>
+          <SettingsIcon />
           <span className={layout.label}>设置</span>
         </button>
       </div>

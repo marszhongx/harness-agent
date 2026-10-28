@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { DialogRequest, UiAnswer } from "../lib/agent";
 import ui from "../styles/ui.module.css";
+import { WarningIcon } from "./Icons";
 
 /**
  * A dialog pi's extension asked for. It stays in the transcript until answered,
@@ -34,20 +35,7 @@ export default function ApprovalCard({
     <div className={ui.turn}>
       <div className={ui.approval}>
         <h3>
-          <svg
-            aria-hidden="true"
-            focusable="false"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          >
-            <path d="M12 9v4M12 17h.01" />
-            <path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
-          </svg>
+          <WarningIcon size={15} />
           <span>{request.title || "需要确认"}</span>
         </h3>
         <p>{request.message ?? request.placeholder ?? request.prefill ?? ""}</p>

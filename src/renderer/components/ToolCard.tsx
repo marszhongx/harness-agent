@@ -1,5 +1,6 @@
 import { memo, useState } from "react";
 import ui from "../styles/ui.module.css";
+import { ChevronRightIcon } from "./Icons";
 
 interface ToolCardProps {
   name: string;
@@ -23,20 +24,9 @@ export default memo(function ToolCard({ name, summary, text, isError, durationMs
   return (
     <div className={`${ui.toolCard} ${expanded ? ui.open : ""}`} data-state={state}>
       <button type="button" className={ui.toolHead} onClick={() => setOpen((value) => !value)}>
-        <svg
-          aria-hidden="true"
-          focusable="false"
-          className={ui.chev}
-          width="10"
-          height="10"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.6"
-          strokeLinecap="round"
-        >
-          <path d="m9 18 6-6-6-6" />
-        </svg>
+        <span className={ui.chev}>
+          <ChevronRightIcon size={12} />
+        </span>
         <span className={ui.toolName}>{name}</span>
         {summary ? <span className={ui.toolSummary}>{summary}</span> : null}
         <span className={ui.toolStatus}>
