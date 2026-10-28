@@ -1,23 +1,19 @@
 /**
- * Run settings: which models exist, and what each conversation is running with.
+ * What each conversation is running with.
  *
- * One store, keyed by session id ("" is the new-conversation page). The
- * catalogue and the per-conversation picks have different lifetimes but the same
- * consumers, and keying them keeps a model change in one conversation from
- * touching another.
+ * The catalogue and its default model live in `store/model.ts`; this store is
+ * only the per-conversation choices, keyed by session id ("" is the
+ * new-conversation page). Keeping the two apart means editing a provider does
+ * not touch a conversation, and a model pick does not rewrite the catalogue.
  */
 import { useEffect } from "react";
 import { create } from "zustand";
-import { agent, type ModelInfo } from "../lib/agent";
+import { agent } from "../lib/agent";
 import { useAgentStream } from "./agent-stream";
-import { useSessions, useSessionsSync } from "./sessions";
+import { type ModelRef, useModel } from "./model";
+import { useSession, useSessionSync } from "./session";
 
 const DRAFT = "";
-
-export type ModelRef = {
-  provider: string;
-  id: string;
-};
 
 export type ThinkingState = {
   level: string | null;
@@ -33,21 +29,15 @@ function put<K, V>(map: Map<K, V>, key: K, value: V): Map<K, V> {
 }
 
 export type RunConfigState = {
-  models: ModelInfo[];
-  defaultModel: ModelRef | null;
-  /** What pi uses when a conversation has no level of its own. */
-  defaultThinkingLevel: string;
   /** Chosen model per conversation; falls back to the conversation's own, then the default. */
   chosen: Map<string, ModelRef>;
   thinking: Map<string, ThinkingState>;
   workspace: Map<string, string | null>;
   getThinking: (sessionId: string | null) => ThinkingState;
   getWorkspace: (sessionId: string | null) => string | null;
-  loadCatalog: () => Promise<void>;
-  setDefaultModel: (provider: string, id: string) => Promise<void>;
   chooseModel: (sessionId: string | null, provider: string, id: string) => void;
   chooseThinking: (sessionId: string | null, level: string) => void;
-  /** Read the workspace (and the catalogue) for one conversation. */
+  /** Read the workspace for one conversation. */
   sync: (sessionId: string | null) => Promise<void>;
   record: (sessionId: string, model?: ModelRef, thinking?: ThinkingState) => void;
 };
@@ -59,29 +49,12 @@ export const useRunConfig = create<RunConfigState>((set, get) => {
     set({ thinking: put(get().thinking, key(sessionId), thinking) });
 
   return {
-    models: [],
-    defaultModel: null,
-    defaultThinkingLevel: "", // replaced on first loadCatalog
     chosen: new Map(),
     thinking: new Map(),
     workspace: new Map(),
 
     getThinking: (sessionId) => get().thinking.get(key(sessionId)) ?? NO_THINKING,
     getWorkspace: (sessionId) => get().workspace.get(key(sessionId)) ?? null,
-
-    loadCatalog: async () => {
-      if (get().models.length > 0) return;
-      const [models, defaultModel, defaultThinkingLevel] = await Promise.all([
-        agent().models(),
-        agent().defaultModel(),
-        agent().defaultThinkingLevel(),
-      ]);
-      set({ models, defaultModel, defaultThinkingLevel });
-    },
-
-    setDefaultModel: async (provider, id) => {
-      set({ defaultModel: await agent().setDefaultModel(provider, id) });
-    },
 
     // `null` is the new-conversation page: main remembers the pick and applies it
     // when the first message mints the session.
@@ -96,7 +69,7 @@ export const useRunConfig = create<RunConfigState>((set, get) => {
     },
 
     sync: async (sessionId) => {
-      const [, status] = await Promise.all([get().loadCatalog(), agent().status(sessionId ?? undefined)]);
+      const status = await agent().status(sessionId ?? undefined);
       set({ workspace: put(get().workspace, key(sessionId), status.workspacePath) });
     },
 
@@ -133,8 +106,21 @@ function startRunConfigSync(): () => void {
   });
 }
 
-export function useRunConfigSync(sessionId: string | null): void {
+/**
+ * The event stream alone: mount it once, at the shell, so model/thinking
+ * reports from background conversations are not dropped with a page.
+ */
+export function useRunConfigEvents(): void {
   useAgentStream(startRunConfigSync);
+}
+
+/**
+ * The catalogue and workspace for the conversation on screen. Kept apart from
+ * the event stream because it is keyed by session and belongs where the session
+ * is displayed.
+ */
+export function useRunConfigSync(sessionId: string | null): void {
+  useRunConfigEvents();
   useEffect(() => {
     void getRunConfig().sync(sessionId);
   }, [sessionId]);
@@ -150,9 +136,9 @@ export function useCurrentThinking(sessionId: string | null): {
   levels: string[];
 } {
   const reported = useRunConfig((state) => state.thinking.get(sessionId ?? DRAFT));
-  const fallback = useRunConfig((state) => state.defaultThinkingLevel);
-  useSessionsSync();
-  const list = useSessions((state) => state.list);
+  const fallback = useModel((state) => state.defaultThinkingLevel);
+  useSessionSync();
+  const list = useSession((state) => state.list);
   const entry = sessionId ? list.find((item) => item.id === sessionId) : undefined;
   return {
     level: reported?.level ?? entry?.thinkingLevel ?? (fallback || null),
@@ -163,9 +149,9 @@ export function useCurrentThinking(sessionId: string | null): {
 /** The model a conversation runs with: its pick, its own record, or the default. */
 export function useCurrentModel(sessionId: string | null): ModelRef | null {
   const chosen = useRunConfig((state) => state.chosen.get(sessionId ?? DRAFT));
-  const defaultModel = useRunConfig((state) => state.defaultModel);
-  useSessionsSync();
-  const list = useSessions((state) => state.list);
+  const defaultModel = useModel((state) => state.defaultModel);
+  useSessionSync();
+  const list = useSession((state) => state.list);
   const entry = sessionId ? list.find((item) => item.id === sessionId) : undefined;
   return chosen ?? entry?.model ?? defaultModel;
 }

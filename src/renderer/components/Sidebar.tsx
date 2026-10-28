@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { agent, relativeTime, type SessionSummary } from "../lib/agent";
-import { getSessions, useSessions, useSessionsSync } from "../store/sessions";
-import { useTranscripts } from "../store/transcript";
+import { getSession, useSession, useSessionSync } from "../store/session";
+import { useTranscript } from "../store/transcript";
 import layout from "../styles/layout.module.css";
 import ConfirmDialog from "./ConfirmDialog";
 import {
@@ -49,10 +49,10 @@ export default function Sidebar({
   onNewConversation,
   onSessionDeleted,
 }: SidebarProps) {
-  const sessions = useSessions((state) => state.list);
+  const sessions = useSession((state) => state.list);
   // Only the busy flags: a streaming answer must not re-render the list.
-  const busy = useTranscripts((state) => state.busy);
-  useSessionsSync();
+  const busy = useTranscript((state) => state.busy);
+  useSessionSync();
   const [collapsed, setCollapsed] = useState(false);
   const [pending, setPending] = useState<SessionSummary | null>(null);
   // Collapsed, the list has no room: an icon in the rail opens it instead.
@@ -231,7 +231,7 @@ export default function Sidebar({
             setPending(null);
             void agent()
               .deleteSession(id)
-              .then(() => getSessions().refresh())
+              .then(() => getSession().refresh())
               .then(() => onSessionDeleted(id));
           }}
         />

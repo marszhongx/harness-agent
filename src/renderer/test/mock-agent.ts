@@ -21,7 +21,7 @@ import type {
 export interface MockAgent {
   api: AgentApi;
   emitEvent: (event: AgentEvent) => void;
-  emitDialog: (dialog: DialogRequest) => void;
+  emitDialog: (dialog: DialogRequest, sessionId?: string) => void;
   emitReady: (payload: { sessionId: string | null; model: string | null }) => void;
 }
 
@@ -81,7 +81,9 @@ export interface MockOptions {
 
 export function installMockAgent(options: MockOptions = {}): MockAgent {
   const eventListeners: Array<(event: AgentEvent) => void> = [];
-  const dialogListeners: Array<(payload: { requestId: string; dialog: DialogRequest }) => void> = [];
+  const dialogListeners: Array<
+    (payload: { sessionId: string; requestId: string; dialog: DialogRequest }) => void
+  > = [];
   const readyListeners: Array<(payload: { sessionId: string | null; model: string | null }) => void> = [];
 
   const sessions = options.sessions ?? [session()];
@@ -108,12 +110,12 @@ export function installMockAgent(options: MockOptions = {}): MockAgent {
     defaultThinkingLevel: vi.fn(async () => options.defaultThinkingLevel ?? "max"),
     setDefaultModel: vi.fn(async (provider: string, id: string) => ({ provider, id })),
     modelsList: vi.fn(async () => options.providers ?? []),
-    saveProvider: vi.fn(async () => []),
-    removeProvider: vi.fn(async () => []),
-    addModel: vi.fn(async () => []),
-    removeModel: vi.fn(async () => []),
+    saveProvider: vi.fn(async () => undefined),
+    removeProvider: vi.fn(async () => undefined),
+    addModel: vi.fn(async () => undefined),
+    removeModel: vi.fn(async () => undefined),
     skillsList: vi.fn(async () => options.skills ?? []),
-    removeSkill: vi.fn(async () => []),
+    removeSkill: vi.fn(async () => undefined),
     revealSkill: vi.fn(async () => undefined),
     readSkill: vi.fn(async () => options.skillText ?? "---\nname: pdf-tools\n---\n\n# body\n"),
     settings: vi.fn(async () => settings(options.settings)),
@@ -159,8 +161,8 @@ export function installMockAgent(options: MockOptions = {}): MockAgent {
       const tagged = { sessionId: eventSessionId, ...event } as AgentEvent;
       for (const listener of eventListeners) listener(tagged);
     },
-    emitDialog: (dialog) => {
-      const payload = { requestId: `dialog-${++dialogSeq}`, dialog };
+    emitDialog: (dialog, sessionId = eventSessionId) => {
+      const payload = { sessionId, requestId: `dialog-${++dialogSeq}`, dialog };
       for (const listener of dialogListeners) listener(payload);
     },
     emitReady: (payload) => {

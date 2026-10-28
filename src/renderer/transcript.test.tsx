@@ -3,13 +3,13 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import ToolCard from "./components/ToolCard";
 import Transcript from "./components/Transcript";
-import type { Item } from "./store/items";
-import { historyToItems, useTranscripts } from "./store/transcript";
+import type { Item } from "./store/item";
+import { historyToItems, useTranscript } from "./store/transcript";
 import { resetStores } from "./test/reset";
 
 beforeEach(() => resetStores());
 
-const store = () => useTranscripts.getState();
+const store = () => useTranscript.getState();
 const items = (sessionId: string) => store().getItems(sessionId);
 const kinds = (sessionId: string) =>
   items(sessionId)

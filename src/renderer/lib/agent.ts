@@ -106,18 +106,15 @@ export interface AgentApi {
   defaultThinkingLevel: () => Promise<string>;
   setDefaultModel: (provider: string, id: string) => Promise<{ provider: string; id: string } | null>;
   modelsList: () => Promise<ProviderSummary[]>;
-  saveProvider: (
-    id: string,
-    input: { baseUrl: string; api: string; apiKey?: string },
-  ) => Promise<ProviderSummary[]>;
-  removeProvider: (id: string) => Promise<ProviderSummary[]>;
+  saveProvider: (id: string, input: { baseUrl: string; api: string; apiKey?: string }) => Promise<void>;
+  removeProvider: (id: string) => Promise<void>;
   addModel: (
     providerId: string,
     model: { id: string; name?: string; contextWindow?: number },
-  ) => Promise<ProviderSummary[]>;
-  removeModel: (providerId: string, modelId: string) => Promise<ProviderSummary[]>;
+  ) => Promise<void>;
+  removeModel: (providerId: string, modelId: string) => Promise<void>;
   skillsList: () => Promise<SkillSummary[]>;
-  removeSkill: (dir: string) => Promise<SkillSummary[]>;
+  removeSkill: (dir: string) => Promise<void>;
   revealSkill: (dir: string) => Promise<void>;
   /** The whole SKILL.md, for the details dialog. */
   readSkill: (dir: string) => Promise<string | null>;
@@ -138,7 +135,9 @@ export interface AgentApi {
   deleteSession: (sessionId: string) => Promise<SessionSummary[]>;
   answer: (requestId: string, answer: UiAnswer) => Promise<boolean>;
   onEvent: (handler: (message: AgentEvent) => void) => () => void;
-  onDialog: (handler: (payload: { requestId: string; dialog: DialogRequest }) => void) => () => void;
+  onDialog: (
+    handler: (payload: { sessionId: string; requestId: string; dialog: DialogRequest }) => void,
+  ) => () => void;
   onReady: (handler: (payload: { sessionId: string | null; model: string | null }) => void) => () => void;
 }
 

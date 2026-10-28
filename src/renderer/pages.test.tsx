@@ -1,10 +1,14 @@
 // @vitest-environment happy-dom
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ProviderSummary } from "./lib/agent";
 import ModelsPage from "./pages/ModelsPage";
 import SettingsPage from "./pages/SettingsPage";
 import SkillsPage from "./pages/SkillsPage";
 import { installMockAgent } from "./test/mock-agent";
+import { resetStores } from "./test/reset";
+
+beforeEach(() => resetStores());
 
 const provider = {
   id: "hifox",
@@ -27,10 +31,14 @@ describe("ModelsPage", () => {
   });
 
   it("adds a model to a provider", async () => {
+    let current: ProviderSummary[] = [provider];
     const mock = installMockAgent({ providers: [provider] });
-    mock.api.addModel = vi.fn(async (_providerId: string, model: { id: string }) => [
-      { ...provider, models: [...provider.models, { id: model.id, name: model.id }] },
-    ]);
+    // The store re-reads the file after a write; the mock has to behave like
+    // main does and reflect the write in the next list.
+    mock.api.modelsList = vi.fn(async () => current);
+    mock.api.addModel = vi.fn(async (_providerId: string, model: { id: string }) => {
+      current = [{ ...provider, models: [...provider.models, { id: model.id, name: model.id }] }];
+    });
     render(<ModelsPage />);
     await screen.findByText("hifox");
 
@@ -51,8 +59,12 @@ describe("ModelsPage", () => {
   });
 
   it("requires a second click before removing a provider", async () => {
+    let current: ProviderSummary[] = [provider];
     const mock = installMockAgent({ providers: [provider] });
-    mock.api.removeProvider = vi.fn(async () => []);
+    mock.api.modelsList = vi.fn(async () => current);
+    mock.api.removeProvider = vi.fn(async () => {
+      current = [];
+    });
     render(<ModelsPage />);
     await screen.findByText("hifox");
 
@@ -114,6 +126,29 @@ describe("SkillsPage", () => {
 
     fireEvent.click(within(dialog).getByLabelText("关闭"));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("drops a removed skill from the shared list", async () => {
+    const skill = {
+      name: "pdf-tools",
+      description: "Read PDFs.",
+      dir: "/ws/.pi/skills/pdf-tools",
+      scope: "project" as const,
+      manualOnly: false,
+    };
+    let current = [skill];
+    const mock = installMockAgent({ skills: [skill] });
+    mock.api.skillsList = vi.fn(async () => current);
+    mock.api.removeSkill = vi.fn(async () => {
+      current = [];
+    });
+    render(<SkillsPage />);
+
+    await screen.findByText("pdf-tools");
+    fireEvent.click(screen.getByLabelText("删除 pdf-tools"));
+
+    await waitFor(() => expect(mock.api.removeSkill).toHaveBeenCalledWith("/ws/.pi/skills/pdf-tools"));
+    await waitFor(() => expect(screen.queryByText("pdf-tools")).toBeNull());
   });
 });
 

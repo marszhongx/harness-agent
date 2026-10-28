@@ -1,12 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import ApprovalCard from "../components/ApprovalCard";
 import Composer from "../components/Composer";
 import Transcript from "../components/Transcript";
-import type { DialogRequest, PromptImage, UiAnswer } from "../lib/agent";
+import type { PromptImage, UiAnswer } from "../lib/agent";
 import { agent } from "../lib/agent";
-import { nextItemId } from "../store/items";
-import { getSessions } from "../store/sessions";
-import { getTranscripts, historyToItems, useTranscriptSync, useTranscripts } from "../store/transcript";
+import { getDialog, useDialog } from "../store/dialog";
+import { nextItemId } from "../store/item";
+import { getSession } from "../store/session";
+import { getTranscript, historyToItems, useTranscript } from "../store/transcript";
 import layout from "../styles/layout.module.css";
 import ui from "../styles/ui.module.css";
 
@@ -15,11 +16,6 @@ interface ChatPageProps {
   sessionId: string | null;
   /** Mints an id the first time a message needs one. */
   onEnsureSession: () => Promise<string>;
-}
-
-interface PendingDialog {
-  requestId: string;
-  request: DialogRequest;
 }
 
 /**
@@ -34,10 +30,11 @@ function readableError(cause: unknown): string {
 /** The conversation view: transcript above, composer below. */
 export default function ChatPage({ sessionId, onEnsureSession }: ChatPageProps) {
   // One value per subscription: a busy flip never invalidates the line list.
-  const items = useTranscripts((state) => state.getItems(sessionId));
-  const busy = useTranscripts((state) => state.getBusy(sessionId));
-  useTranscriptSync();
-  const [dialog, setDialog] = useState<PendingDialog | null>(null);
+  const items = useTranscript((state) => state.getItems(sessionId));
+  const busy = useTranscript((state) => state.getBusy(sessionId));
+  // The queue lives above this page: the request has to survive navigation, and
+  // only the one belonging to this conversation is shown here.
+  const dialog = useDialog((state) => state.getFor(sessionId));
   const scroller = useRef<HTMLDivElement>(null);
   // Follow the bottom while the user has not scrolled away from it.
   const stick = useRef(true);
@@ -68,23 +65,17 @@ export default function ChatPage({ sessionId, onEnsureSession }: ChatPageProps) 
   // the conversation was already on screen (or is a draft that just started).
   useEffect(() => {
     if (!sessionId) return;
-    if (getTranscripts().getItems(sessionId).length > 0) return;
+    if (getTranscript().getItems(sessionId).length > 0) return;
     void (async () => {
       const history = await agent().history(sessionId);
-      if (history && history.length > 0) getTranscripts().replace(sessionId, historyToItems(history));
+      if (history && history.length > 0) getTranscript().replace(sessionId, historyToItems(history));
     })();
   }, [sessionId]);
 
-  // Approval requests belong to whichever conversation is open.
-  useEffect(
-    () => agent().onDialog(({ requestId, dialog: request }) => setDialog({ requestId, request })),
-    [],
-  );
-
+  // Approval requests are global (see `store/dialog.ts`); answering removes
+  // the current one so a queued request can take its place.
   const answer = (value: UiAnswer) => {
-    const pending = dialog;
-    setDialog(null);
-    if (pending) void agent().answer(pending.requestId, value);
+    if (dialog) getDialog().answer(dialog, value);
   };
 
   const send = async (text: string, images?: PromptImage[]) => {
@@ -92,7 +83,7 @@ export default function ChatPage({ sessionId, onEnsureSession }: ChatPageProps) 
     // were reading further up.
     stick.current = true;
     const id = sessionId ?? (await onEnsureSession());
-    const transcripts = getTranscripts();
+    const transcripts = getTranscript();
     transcripts.setBusy(id, true);
     transcripts.append(id, { id: nextItemId(), kind: "user", text, images });
     try {
@@ -101,7 +92,7 @@ export default function ChatPage({ sessionId, onEnsureSession }: ChatPageProps) 
       transcripts.setBusy(id, false);
       transcripts.append(id, { id: nextItemId(), kind: "notice", text: readableError(cause), error: true });
     }
-    void getSessions().refresh();
+    void getSession().refresh();
   };
 
   return (
@@ -117,7 +108,7 @@ export default function ChatPage({ sessionId, onEnsureSession }: ChatPageProps) 
             </div>
           ) : null}
           <Transcript items={items} />
-          {dialog ? <ApprovalCard dialog={dialog.request} onAnswer={answer} /> : null}
+          {dialog ? <ApprovalCard key={dialog.requestId} dialog={dialog.request} onAnswer={answer} /> : null}
         </div>
       </div>
 

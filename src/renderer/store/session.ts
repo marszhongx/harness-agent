@@ -5,18 +5,18 @@
 import { create } from "zustand";
 import { agent, type SessionSummary } from "../lib/agent";
 import { useAgentStream } from "./agent-stream";
-import { getTranscripts } from "./transcript";
+import { getTranscript } from "./transcript";
 
 const NO_SESSIONS: SessionSummary[] = [];
 
-export type SessionsState = {
+export type SessionState = {
   list: SessionSummary[];
   loading: boolean;
   /** Re-read the list; a call while one is in flight is a no-op. */
   refresh: () => Promise<SessionSummary[]>;
 };
 
-export const useSessions = create<SessionsState>((set, get) => ({
+export const useSession = create<SessionState>((set, get) => ({
   list: NO_SESSIONS,
   loading: false,
 
@@ -29,7 +29,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
       // reloaded has no event history, and would otherwise show every row idle.
       for (const entry of list) {
         const working = entry.working === true;
-        if (getTranscripts().getBusy(entry.id) !== working) getTranscripts().setBusy(entry.id, working);
+        if (getTranscript().getBusy(entry.id) !== working) getTranscript().setBusy(entry.id, working);
       }
       set({ list });
       return get().list;
@@ -40,16 +40,16 @@ export const useSessions = create<SessionsState>((set, get) => ({
 }));
 
 /** Imperative access from event handlers and other stores. */
-export const getSessions = useSessions.getState;
+export const getSession = useSession.getState;
 
 /** A turn ending and a worker coming up are the two moments the list changes. */
 function startSessionsSync(): () => void {
-  void getSessions().refresh();
+  void getSession().refresh();
   return agent().onEvent((event) => {
-    if (event.type === "settled" || event.type === "ready") void getSessions().refresh();
+    if (event.type === "settled" || event.type === "ready") void getSession().refresh();
   });
 }
 
-export function useSessionsSync(): void {
+export function useSessionSync(): void {
   useAgentStream(startSessionsSync);
 }

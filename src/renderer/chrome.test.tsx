@@ -60,6 +60,14 @@ describe("ApprovalCard", () => {
     fireEvent.click(screen.getByText("提交"));
     expect(onAnswer).toHaveBeenCalledWith({ kind: "value", value: "fix: thing" });
   });
+
+  it("starts an editor with the text pi offered", () => {
+    render(
+      <ApprovalCard dialog={{ method: "editor", title: "Edit", prefill: "one\ntwo" }} onAnswer={vi.fn()} />,
+    );
+
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("one\ntwo");
+  });
 });
 
 describe("Sidebar", () => {

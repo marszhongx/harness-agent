@@ -1,27 +1,29 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { InfoIcon, RefreshIcon, TrashIcon } from "../components/Icons";
 import SkillDetails from "../components/SkillDetails";
-import { agent, type SkillSummary } from "../lib/agent";
+import type { SkillSummary } from "../lib/agent";
+import { getSkill, useSkill, useSkillSync } from "../store/skill";
 import ui from "../styles/ui.module.css";
 
 /**
  * Lists what pi would discover. The app never parses skills itself — it only
- * reads the same directories and can open one in the file manager or scaffold a
- * new one.
+ * reads the same directories and can open one in the file manager.
  *
- * Descriptions are written for a model and can be paragraphs; the row shows two
- * lines and keeps the rest in the tooltip, so the list stays scannable.
+ * The list lives in the skills store: deleting a skill updates the store, and
+ * the page reads it back through a subscription rather than holding its own copy.
  */
 export default function SkillsPage() {
-  const [skills, setSkills] = useState<SkillSummary[]>([]);
+  const skills = useSkill((state) => state.list);
   const [error, setError] = useState<string | null>(null);
   const [opened, setOpened] = useState<SkillSummary | null>(null);
+  useSkillSync();
 
-  const load = useCallback(async () => setSkills(await agent().skillsList()), []);
+  const failure = (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause));
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const load = () => {
+    setError(null);
+    void getSkill().load().catch(failure);
+  };
 
   return (
     <section className={ui.view}>
@@ -34,7 +36,7 @@ export default function SkillsPage() {
               className={ui.iconBtn}
               aria-label="重新读取"
               title="重新读取技能目录"
-              onClick={() => void load()}
+              onClick={load}
             >
               <RefreshIcon />
             </button>
@@ -69,12 +71,7 @@ export default function SkillsPage() {
                   title="删除"
                   onClick={() => {
                     setError(null);
-                    void agent()
-                      .removeSkill(skill.dir)
-                      .then(setSkills)
-                      .catch((cause: unknown) =>
-                        setError(cause instanceof Error ? cause.message : String(cause)),
-                      );
+                    void getSkill().remove(skill.dir).catch(failure);
                   }}
                 >
                   <TrashIcon />

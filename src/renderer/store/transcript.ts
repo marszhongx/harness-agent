@@ -10,7 +10,7 @@
 import { create } from "zustand";
 import { type AgentEvent, agent, type TranscriptItem } from "../lib/agent";
 import { useAgentStream } from "./agent-stream";
-import { type Item, nextItemId } from "./items";
+import { type Item, nextItemId } from "./item";
 
 const NO_ITEMS: Item[] = [];
 const DRAFT = "";
@@ -53,7 +53,7 @@ export type TranscriptState = {
   setBusy: (sessionId: string, busy: boolean) => void;
 };
 
-export const useTranscripts = create<TranscriptState>((set, get) => {
+export const useTranscript = create<TranscriptState>((set, get) => {
   const key = (sessionId: string | null) => sessionId ?? DRAFT;
 
   const setItems = (sessionId: string, items: Item[]) => set({ items: put(get().items, sessionId, items) });
@@ -144,11 +144,11 @@ export const useTranscripts = create<TranscriptState>((set, get) => {
 });
 
 /** Imperative access from event handlers and other stores. */
-export const getTranscripts = useTranscripts.getState;
+export const getTranscript = useTranscript.getState;
 
 /** The one place the agent event stream is wired to the store. */
 function startTranscriptSync(): () => void {
-  return agent().onEvent((event) => getTranscripts().ingest(event));
+  return agent().onEvent((event) => getTranscript().ingest(event));
 }
 
 export function useTranscriptSync(): void {

@@ -13,6 +13,7 @@
  *   pnpm dev -- --smoke                       # headless check, exits 0/1
  */
 
+import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, extname, join, resolve } from "node:path";
@@ -55,6 +56,7 @@ import { SessionStore } from "../host/session-store.ts";
 import { listSkills, readSkillFile, removeSkill } from "../host/skills.ts";
 import { readTranscript } from "../host/transcript-file.ts";
 import { checkWorkspace, ensureDefaultWorkspace } from "../host/workspace.ts";
+import { IpcAction } from "../preload/ipc-action.ts";
 
 app.setName("harness-agent");
 
@@ -170,8 +172,14 @@ let window: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let quitting = false;
 
-/** Dialogs the renderer has not answered yet, keyed by the worker request id. */
-const pendingDialogs = new Map<string, (answer: UiAnswer) => void>();
+/** A dialog waiting for the renderer, keyed by the id the renderer sees. */
+interface PendingDialogEntry {
+  sessionId: string;
+  resolve: (answer: UiAnswer) => void;
+  /** UI-side fallback so a card cannot outlive the worker's own timeout. */
+  timer: NodeJS.Timeout | null;
+}
+const pendingDialogs = new Map<string, PendingDialogEntry>();
 /**
  * Last transcript the worker pushed. The renderer reads it once on load instead
  * of racing the `history` event, which can fire before its listeners exist.
@@ -317,6 +325,10 @@ function forwardToRenderer(sessionId: string, message: WorkerToHost): void {
   // `ui_request` is delivered through `askUser` instead, so the renderer never
   // sees the same dialog twice.
   if (message.type === "ui_request") return;
+  // A turn that ended cannot have a dialog left to answer.
+  if (message.type === "settled" || (message.type === "error" && message.fatal)) {
+    cancelDialogs(sessionId);
+  }
   if (message.type === "settled" || message.type === "error") {
     workingSessions.delete(sessionId);
     logger.info(
@@ -335,15 +347,49 @@ function forwardToRenderer(sessionId: string, message: WorkerToHost): void {
   if (message.type === "notify" && message.level === "error") {
     new Notification({ title: "Agent", body: message.message }).show();
   }
-  send("agent:event", { ...message, sessionId });
+  send(IpcAction.agent.event, { ...message, sessionId });
 }
 
-function askUser(requestId: string, dialog: DialogRequest): Promise<UiAnswer> {
+/**
+ * Ask the renderer, under an id that is unique across every conversation.
+ *
+ * Worker-side dialog ids restart at `d1` in each worker, so they cannot be the
+ * key here: two conversations asking at once would overwrite each other. The
+ * answer goes back through `AgentHost`, which still knows the worker's id.
+ */
+function askUser(sessionId: string, dialog: DialogRequest): Promise<UiAnswer> {
   if (!window || window.isDestroyed()) return Promise.resolve({ kind: "cancel" });
-  return new Promise<UiAnswer>((pending) => {
-    pendingDialogs.set(requestId, pending);
-    send("agent:dialog", { requestId, dialog });
+  const requestId = randomUUID();
+  return new Promise<UiAnswer>((resolve) => {
+    // The worker enforces its own timeout; this one keeps a stale card from
+    // surviving on screen when pi has already moved on.
+    const timeout = "timeout" in dialog ? dialog.timeout : undefined;
+    const timer =
+      typeof timeout === "number" && timeout > 0
+        ? setTimeout(() => {
+            if (!pendingDialogs.delete(requestId)) return;
+            resolve({ kind: "cancel" });
+            send(IpcAction.agent.event, { type: "dialog_cancelled", sessionId, requestId });
+          }, timeout)
+        : null;
+    pendingDialogs.set(requestId, { sessionId, resolve, timer });
+    send(IpcAction.agent.dialog, { sessionId, requestId, dialog });
   });
+}
+
+/**
+ * Drop dialogs nobody can answer any more: the turn ended, the worker died, the
+ * conversation was deleted, or the window closed. The waiting `AgentHost` writes
+ * the cancel back to pi (a no-op when that worker is already gone).
+ */
+function cancelDialogs(sessionId?: string): void {
+  for (const [requestId, entry] of pendingDialogs) {
+    if (sessionId && entry.sessionId !== sessionId) continue;
+    if (entry.timer) clearTimeout(entry.timer);
+    pendingDialogs.delete(requestId);
+    entry.resolve({ kind: "cancel" });
+    send(IpcAction.agent.event, { type: "dialog_cancelled", sessionId: entry.sessionId, requestId });
+  }
 }
 
 /**
@@ -417,6 +463,10 @@ function createWindow(): void {
     },
   });
   if (saved?.maximized) window.maximize();
+  // A reload throws away the renderer's dialog queue. Cancel the requests it
+  // can no longer answer instead of leaving pi blocked on them. The initial
+  // load runs this with nothing pending.
+  window.webContents.on("did-start-loading", () => cancelDialogs());
   void window.loadURL(devServerUrl ?? rendererUrl);
   window.show();
   window.focus();
@@ -429,6 +479,9 @@ function createWindow(): void {
     });
   });
   window.on("closed", () => {
+    // Nobody can answer a pending dialog once the window is gone; cancel them
+    // instead of letting every worker wait for pi's timeout.
+    cancelDialogs();
     window = null;
   });
 }
@@ -456,7 +509,7 @@ function createTray(): void {
 }
 
 function registerIpc(): void {
-  ipcMain.handle("agent:status", (_event, requested?: string) => {
+  ipcMain.handle(IpcAction.agent.status, (_event, requested?: string) => {
     const sessionId = typeof requested === "string" ? requested : "";
     const live = hostFor(sessionId);
     return {
@@ -475,47 +528,48 @@ function registerIpc(): void {
    * Showing a conversation must not cost a pi process: the file is documented,
    * append-only and versioned, and reading it is what makes switching instant.
    */
-  ipcMain.handle("agent:history", (_event, sessionId?: string) => {
+  ipcMain.handle(IpcAction.agent.history, (_event, sessionId?: string) => {
     const id = typeof sessionId === "string" ? sessionId : "";
     const file = store.get(id)?.sessionFile;
     if (!file) return null;
     const items = readTranscript(join(sessionsDir(), file));
     return items.length > 0 ? items : null;
   });
-  ipcMain.handle("agent:models", () => availableModels());
-  ipcMain.handle("agent:defaultModel", () => resolveDefaultModel());
-  ipcMain.handle("agent:setDefaultModel", (_event, nextProvider: string, nextId: string) => {
+  ipcMain.handle(IpcAction.agent.models, () => availableModels());
+  ipcMain.handle(IpcAction.agent.defaultModel, () => resolveDefaultModel());
+  ipcMain.handle(IpcAction.agent.setDefaultModel, (_event, nextProvider: string, nextId: string) => {
     if (typeof nextProvider !== "string" || typeof nextId !== "string") return resolveDefaultModel();
     writeDefaultModel({ provider: nextProvider, id: nextId });
     return resolveDefaultModel();
   });
 
   ipcMain.handle(
-    "agent:prompt",
+    IpcAction.agent.prompt,
     (_event, sessionId: string, message: string, images?: Array<{ data: string; mimeType: string }>) =>
       promptAgent(sessionId, message, images),
   );
-  ipcMain.handle("agent:abort", (_event, sessionId: string) =>
+  ipcMain.handle(IpcAction.agent.abort, (_event, sessionId: string) =>
     hostFor(typeof sessionId === "string" ? sessionId : "")?.abort(),
   );
   // `working` comes from the live process set, so a reloaded window can trust
   // the list instead of keeping its own guess.
-  ipcMain.handle("agent:listSessions", () =>
+  ipcMain.handle(IpcAction.agent.listSessions, () =>
     store.list().map((entry) => ({ ...entry, working: workingSessions.has(entry.id) })),
   );
-  ipcMain.handle("agent:defaultThinkingLevel", () => readDefaultThinkingLevel());
+  ipcMain.handle(IpcAction.agent.defaultThinkingLevel, () => readDefaultThinkingLevel());
   /**
    * Delete a conversation: its process, its index entry and its transcript.
    *
    * The transcript is pi's file, but it is this conversation and the user asked
    * for it to go. Everything else about the app stays.
    */
-  ipcMain.handle("agent:deleteSession", async (_event, sessionId: string) => {
+  ipcMain.handle(IpcAction.agent.deleteSession, async (_event, sessionId: string) => {
     const id = typeof sessionId === "string" ? sessionId : "";
     if (!id) return store.list();
     const entry = store.remove(id);
     if (!entry) return store.list();
 
+    cancelDialogs(id);
     const live = hosts.get(id);
     if (live) {
       hosts.delete(id);
@@ -540,7 +594,7 @@ function registerIpc(): void {
    * Pick the folder for the conversation about to start. Only the draft can be
    * changed: an existing conversation keeps the directory pi opened it in.
    */
-  ipcMain.handle("agent:chooseDraftWorkspace", async () => {
+  ipcMain.handle(IpcAction.agent.chooseDraftWorkspace, async () => {
     logger.info("choose draft workspace");
     const picked = await dialog.showOpenDialog({
       properties: ["openDirectory", "createDirectory"],
@@ -549,51 +603,46 @@ function registerIpc(): void {
     if (!picked.canceled && picked.filePaths.length > 0) drafts.chooseWorkspace(picked.filePaths[0]);
     return { workspacePath: drafts.workspacePath(defaultWorkspace()) };
   });
-  ipcMain.handle("agent:newSession", () => {
+  ipcMain.handle(IpcAction.agent.newSession, () => {
     // A fresh draft: id minted, nothing written to the index, nothing in the
     // list, and no worker. Other conversations keep their processes.
     return startDraft().id;
   });
   // ── models ────────────────────────────────────────────────────────────────
-  ipcMain.handle("models:list", () => listProviders());
+  // Writes return nothing: the renderer re-reads `models:list` / `agent:models`
+  // after a successful mutation instead of decoding a response shape.
+  ipcMain.handle(IpcAction.models.list, () => listProviders());
   ipcMain.handle(
-    "models:upsertProvider",
+    IpcAction.models.upsertProvider,
     async (_event, id: string, input: { baseUrl: string; api: string; apiKey?: string }) => {
-      const list = upsertProvider(id, input);
+      upsertProvider(id, input);
       await reloadWorker();
-      return list;
     },
   );
-  ipcMain.handle("models:removeProvider", async (_event, id: string) => {
-    const list = removeProvider(id);
+  ipcMain.handle(IpcAction.models.removeProvider, async (_event, id: string) => {
+    removeProvider(id);
     await reloadWorker();
-    send("agent:event", { type: "models", models: availableModels() });
-    return list;
   });
   ipcMain.handle(
-    "models:addModel",
+    IpcAction.models.addModel,
     async (_event, providerId: string, model: { id: string; name?: string; contextWindow?: number }) => {
-      const list = addModel(providerId, model);
+      addModel(providerId, model);
       await reloadWorker();
-      return list;
     },
   );
-  ipcMain.handle("models:removeModel", async (_event, providerId: string, modelId: string) => {
-    const list = removeModel(providerId, modelId);
+  ipcMain.handle(IpcAction.models.removeModel, async (_event, providerId: string, modelId: string) => {
+    removeModel(providerId, modelId);
     await reloadWorker();
-    send("agent:event", { type: "models", models: availableModels() });
-    return list;
   });
 
   // ── skills ────────────────────────────────────────────────────────────────
-  ipcMain.handle("skills:list", () => listSkills(defaultWorkspace()));
-  ipcMain.handle("skills:remove", async (_event, dir: string) => {
-    const list = removeSkill(dir, defaultWorkspace());
+  ipcMain.handle(IpcAction.skills.list, () => listSkills(defaultWorkspace()));
+  ipcMain.handle(IpcAction.skills.remove, async (_event, dir: string) => {
+    removeSkill(dir, defaultWorkspace());
     await reloadWorker();
-    return list;
   });
-  ipcMain.handle("skills:reveal", (_event, dir: string) => shell.showItemInFolder(dir));
-  ipcMain.handle("skills:read", (_event, dir: string) => readSkillFile(dir, defaultWorkspace()));
+  ipcMain.handle(IpcAction.skills.reveal, (_event, dir: string) => shell.showItemInFolder(dir));
+  ipcMain.handle(IpcAction.skills.read, (_event, dir: string) => readSkillFile(dir, defaultWorkspace()));
 
   // ── settings ──────────────────────────────────────────────────────────────
   const settingsSnapshot = () => ({
@@ -609,19 +658,19 @@ function registerIpc(): void {
     electronVersion: process.versions.electron ?? "",
     nodeVersion: process.versions.node,
   });
-  ipcMain.handle("settings:get", () => settingsSnapshot());
-  ipcMain.handle("settings:setTheme", (_event, theme: ThemeSetting) => {
+  ipcMain.handle(IpcAction.settings.get, () => settingsSnapshot());
+  ipcMain.handle(IpcAction.settings.setTheme, (_event, theme: ThemeSetting) => {
     const next = theme === "light" || theme === "dark" ? theme : "system";
     appSettings.update({ theme: next });
     applyTheme(next);
     return settingsSnapshot();
   });
-  ipcMain.handle("settings:setLaunchAtLogin", (_event, enabled: boolean) => {
+  ipcMain.handle(IpcAction.settings.setLaunchAtLogin, (_event, enabled: boolean) => {
     appSettings.update({ launchAtLogin: enabled === true });
     applyLaunchAtLogin(enabled === true);
     return settingsSnapshot();
   });
-  ipcMain.handle("workspace:choose", async () => {
+  ipcMain.handle(IpcAction.workspace.choose, async () => {
     const picked = await dialog.showOpenDialog({
       properties: ["openDirectory", "createDirectory"],
       title: "选择新会话使用的工作目录",
@@ -630,15 +679,15 @@ function registerIpc(): void {
     setDefaultWorkspace(picked.filePaths[0]);
     return settingsSnapshot();
   });
-  ipcMain.handle("workspace:reset", () => {
+  ipcMain.handle(IpcAction.workspace.reset, () => {
     setDefaultWorkspace(null);
     return settingsSnapshot();
   });
-  ipcMain.handle("path:reveal", (_event, path: string) => {
+  ipcMain.handle(IpcAction.path.reveal, (_event, path: string) => {
     if (typeof path === "string" && path) void shell.openPath(path);
   });
 
-  ipcMain.handle("agent:setThinkingLevel", (_event, sessionId: string, level: string) => {
+  ipcMain.handle(IpcAction.agent.setThinkingLevel, (_event, sessionId: string, level: string) => {
     if (typeof level !== "string") return false;
     // Recorded even without a worker; it is applied when the session next runs.
     if (!sessionId || drafts.holds(sessionId)) {
@@ -650,7 +699,7 @@ function registerIpc(): void {
     return true;
   });
 
-  ipcMain.handle("agent:setModel", (_event, sessionId: string, provider: string, model: string) => {
+  ipcMain.handle(IpcAction.agent.setModel, (_event, sessionId: string, provider: string, model: string) => {
     if (typeof provider !== "string" || typeof model !== "string") return false;
     if (!sessionId || drafts.holds(sessionId)) {
       drafts.chooseModel(sessionId, { provider, id: model });
@@ -661,15 +710,14 @@ function registerIpc(): void {
     return true;
   });
 
-  // The renderer answers a dialog: `key` identifies the waiting promise here,
-  // `requestId`/`answer` are forwarded to the worker.
-  // The renderer answers a dialog. The pending promise in `askUser` resolves and
-  // `AgentHost` writes the `extension_ui_response` back to pi.
-  ipcMain.handle("agent:answer", (_event, payload: { requestId: string; answer: UiAnswer }) => {
-    const resolvePending = pendingDialogs.get(payload.requestId);
-    if (!resolvePending) return false;
+  // The renderer answers a dialog. The pending promise in `askUser` resolves
+  // and `AgentHost` writes the `extension_ui_response` back to pi.
+  ipcMain.handle(IpcAction.agent.answer, (_event, payload: { requestId: string; answer: UiAnswer }) => {
+    const entry = pendingDialogs.get(payload.requestId);
+    if (!entry) return false;
+    if (entry.timer) clearTimeout(entry.timer);
     pendingDialogs.delete(payload.requestId);
-    resolvePending(payload.answer);
+    entry.resolve(payload.answer);
     return true;
   });
 }
@@ -792,16 +840,28 @@ async function startHost(sessionId: string): Promise<AgentHost> {
       // once the transcript exists, so the index never points at nothing.
       if (sessionFile && existsSync(sessionFile)) store.attachFile(sessionId, sessionFile);
     },
-    askUser,
+    askUser: (_requestId, dialog) => askUser(sessionId, dialog),
+    onTurnEnd: ({ reason }) => {
+      // No `settled` is coming: the turn died with the worker. Clear the same
+      // state a normal settle would, so the composer is usable again.
+      logger.info("turn ended", { sessionId, reason });
+      workingSessions.delete(sessionId);
+      cancelDialogs(sessionId);
+      send(IpcAction.agent.event, { type: "settled", sessionId });
+    },
     onRestart: (info) => {
       logger.error("worker restarted", { sessionId, ...info });
-      // A crashed worker will never send `settled`; without this the app would
-      // think a turn is still running and ask before every quit.
+      // A crashed worker cannot answer the dialog it asked; `onTurnEnd` has
+      // already settled the turn when there was one.
+      cancelDialogs(sessionId);
+      // Without this the app would think a turn is still running and ask before
+      // every quit, even when the crash happened between turns.
       workingSessions.delete(sessionId);
-      // The turn died with the worker: settle it so the view stops showing a
-      // spinner, then say why in the transcript.
-      send("agent:event", { type: "settled", sessionId });
-      send("agent:event", { type: "notify", message: `worker 已重启（第 ${info.attempt} 次）`, sessionId });
+      send(IpcAction.agent.event, {
+        type: "notify",
+        message: `worker 已重启（第 ${info.attempt} 次）`,
+        sessionId,
+      });
     },
   });
   hosts.set(sessionId, started);
@@ -919,7 +979,7 @@ app.whenReady().then(async () => {
         void promptAgent(id, "用一句话说明你能帮我做什么，然后停。");
       }, 1200);
     }
-    send("agent:ready", { sessionId: null, model: resolveDefaultModel()?.id ?? null });
+    send(IpcAction.agent.ready, { sessionId: null, model: resolveDefaultModel()?.id ?? null });
   } catch (error) {
     logger.error("startup failed", error);
     console.error("startup failed:", error);

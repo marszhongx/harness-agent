@@ -63,6 +63,7 @@ const hosts: AgentHost[] = [];
 const startHost = async (mode: "fast" | "slow" | "hang", overrides: Partial<AgentHostOptions> = {}) => {
   process.env.STUB_MODE = mode;
   const events: WorkerToHost[] = [];
+  const ends: Array<{ reason: "replaced" | "crashed" }> = [];
   const host = await AgentHost.start({
     workerEntry,
     piCliPath: "unused",
@@ -70,13 +71,19 @@ const startHost = async (mode: "fast" | "slow" | "hang", overrides: Partial<Agen
     sessionDir: join(dir, "sessions"),
     abortGraceMs: 250,
     onEvent: (message) => events.push(message),
+    onTurnEnd: (info) => ends.push(info),
     ...overrides,
   });
   hosts.push(host);
-  return { host, events };
+  return { host, events, ends };
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function waitFor(check: () => boolean, timeoutMs = 2_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!check() && Date.now() < deadline) await sleep(25);
+}
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "agent-host-"));
@@ -120,7 +127,7 @@ describe("AgentHost", () => {
   });
 
   it("replaces the worker when the abort is ignored", async () => {
-    const { host, events } = await startHost("hang");
+    const { host, events, ends } = await startHost("hang");
     await host.prompt("long task");
     const pid = host.workerPid;
 
@@ -129,6 +136,21 @@ describe("AgentHost", () => {
 
     expect(host.workerPid).not.toBe(pid);
     expect(events.some((event) => event.type === "notify")).toBe(true);
+    // The worker that ignored the abort took the turn with it; the caller has
+    // to be told, because no `settled` will ever arrive.
+    expect(ends).toEqual([{ reason: "replaced" }]);
+  });
+
+  it("reports a turn that dies with a crashed worker", async () => {
+    const { host, ends } = await startHost("hang");
+    await host.prompt("long task");
+    const pid = host.workerPid;
+    if (!pid) throw new Error("worker has no pid");
+
+    process.kill(pid, "SIGKILL");
+    await waitFor(() => ends.length > 0);
+
+    expect(ends).toEqual([{ reason: "crashed" }]);
   });
 
   it("restarts only its own worker", async () => {

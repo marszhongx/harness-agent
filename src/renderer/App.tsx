@@ -5,8 +5,10 @@ import ChatPage from "./pages/ChatPage";
 import ModelsPage from "./pages/ModelsPage";
 import SettingsPage from "./pages/SettingsPage";
 import SkillsPage from "./pages/SkillsPage";
-import { getSessions } from "./store/sessions";
-import { getTranscripts } from "./store/transcript";
+import { getDialog, useDialogSync } from "./store/dialog";
+import { useRunConfigEvents } from "./store/run-config";
+import { getSession } from "./store/session";
+import { getTranscript, useTranscriptSync } from "./store/transcript";
 import layout from "./styles/layout.module.css";
 
 /**
@@ -19,12 +21,19 @@ export default function App() {
   const [view, setView] = useState<View>("chat");
   const [sessionId, setSessionId] = useState<string | null>(null);
 
+  // These three streams cover data the whole app accumulates, not one page:
+  // a background conversation keeps streaming, its model/thinking reports still
+  // land, and a dialog does not disappear when the chat view unmounts.
+  useTranscriptSync();
+  useRunConfigEvents();
+  useDialogSync();
+
   /** Called by the composer when the first message needs an id. */
   const ensureSession = useCallback(async () => {
     if (sessionId) return sessionId;
     const created = await agent().newSession();
     setSessionId(created);
-    void getSessions().refresh();
+    void getSession().refresh();
     return created;
   }, [sessionId]);
 
@@ -48,7 +57,8 @@ export default function App() {
         onNewConversation={newConversation}
         onSessionDeleted={(id) => {
           if (id === sessionId) setSessionId(null);
-          getTranscripts().drop(id);
+          getTranscript().drop(id);
+          getDialog().dropSession(id);
         }}
       />
       <main className={layout.main}>

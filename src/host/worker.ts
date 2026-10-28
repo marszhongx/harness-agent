@@ -54,6 +54,8 @@ const channel = openChannel();
 
 let transport: PiTransport | null = null;
 let activeRequestId: string | null = null;
+/** Set when pi exits on its own; the run's rejection is the same news. */
+let piExited = false;
 let settledWaiter: (() => void) | null = null;
 /**
  * pi reports the end of a run twice when it emits both `agent_end` and
@@ -280,6 +282,17 @@ async function init(message: Extract<HostToWorker, { type: "init" }>): Promise<v
       env: message.env,
       onEvent: onPiEvent,
       onUiRequest,
+      onExit: ({ code, signal }) => {
+        // pi died on its own. The host's recovery works by replacing the
+        // worker, so staying alive here would leave the session wedged with no
+        // process behind it. The fatality is reported for anyone watching the
+        // transcript; the host also settles the turn when it sees us exit.
+        logger.error("pi exited", { code, signal });
+        piExited = true;
+        fail(`pi exited (code=${code}, signal=${signal})`, true);
+        // Let the IPC message reach the host before the channel closes.
+        setTimeout(() => process.exit(1), 50);
+      },
       onStderr: (chunk) => {
         process.stderr.write(`[pi] ${chunk}`);
         logger.warn("pi stderr", chunk.trim());
@@ -332,7 +345,9 @@ async function runPrompt(
       settledWaiter = resolve;
     });
   } catch (error) {
-    fail(error instanceof Error ? error.message : String(error), false, requestId);
+    // When pi exited, `onExit` already reported the same reason; a second
+    // notice would just duplicate it in the transcript.
+    if (!piExited) fail(error instanceof Error ? error.message : String(error), false, requestId);
   } finally {
     activeRequestId = null;
     settledWaiter = null;

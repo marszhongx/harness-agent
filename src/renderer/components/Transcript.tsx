@@ -1,5 +1,5 @@
 import { memo } from "react";
-import type { Item } from "../store/items";
+import type { Item } from "../store/item";
 import ui from "../styles/ui.module.css";
 import ToolCard from "./ToolCard";
 

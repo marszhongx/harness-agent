@@ -99,6 +99,12 @@ export interface PiTransportOptions {
    */
   onUiRequest?: (request: UiRequest) => Promise<UiResponse | null>;
   onStderr?: (chunk: string) => void;
+  /**
+   * The pi process exited on its own (not because `dispose()` killed it).
+   * The worker uses this to exit too: the host only recovers a session by
+   * replacing its worker.
+   */
+  onExit?: (info: { code: number | null; signal: string | null }) => void;
 }
 
 interface Pending {
@@ -131,6 +137,9 @@ export class PiTransport {
     });
     this.child.on("exit", (code, signal) => {
       this.#failAll(new Error(`pi exited (code=${code}, signal=${signal})`));
+      // `dispose()` kills pi on purpose, including when startup fails; only an
+      // exit we did not ask for is a crash worth reporting.
+      if (!this.#disposed) this.#options.onExit?.({ code, signal });
     });
     this.child.on("error", (error) => {
       this.#exitError = error;

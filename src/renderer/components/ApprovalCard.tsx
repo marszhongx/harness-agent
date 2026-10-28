@@ -14,7 +14,9 @@ export default function ApprovalCard({
   dialog: DialogRequest;
   onAnswer: (answer: UiAnswer) => void;
 }) {
-  const [value, setValue] = useState("");
+  // The card is keyed by request id wherever it is rendered, so this runs once
+  // per dialog. An editor starts from what pi offered to edit.
+  const [value, setValue] = useState(dialog.method === "editor" ? (dialog.prefill ?? "") : "");
   const request = dialog;
 
   const answer = (): UiAnswer => {
@@ -38,7 +40,7 @@ export default function ApprovalCard({
           <WarningIcon size={15} />
           <span>{request.title || "需要确认"}</span>
         </h3>
-        <p>{request.message ?? request.placeholder ?? request.prefill ?? ""}</p>
+        <p>{request.message ?? request.placeholder ?? ""}</p>
 
         {request.method === "select" && request.options ? (
           <div className={ui.row}>

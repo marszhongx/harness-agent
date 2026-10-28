@@ -53,6 +53,12 @@ export interface AgentHostOptions {
   askUser?: (requestId: string, dialog: DialogRequest) => Promise<UiAnswer> | UiAnswer;
   onRestart?: (info: { attempt: number; code: number | null; signal: string | null }) => void;
   /**
+   * The host ended the turn itself, so no worker `settled` will arrive: the
+   * worker was replaced (abort grace, model/skill reload) or crashed. The
+   * caller has to clear whatever it tracks as "a turn is running".
+   */
+  onTurnEnd?: (info: { reason: "replaced" | "crashed" }) => void;
+  /**
    * Called once per spawn, after the worker reports what pi opened. Separate
    * from `onEvent` because it fires *during* `AgentHost.start()` — before the
    * caller has a host reference to read `sessionId` from.
@@ -131,8 +137,15 @@ export class AgentHost {
 
   static async start(options: AgentHostOptions): Promise<AgentHost> {
     const host = new AgentHost(options);
-    await host.#spawn();
-    return host;
+    try {
+      await host.#spawn();
+      return host;
+    } catch (error) {
+      // A worker that never became ready would otherwise stay alive with no
+      // host pointing at it, and the next attempt would add another one.
+      await host.dispose().catch(() => undefined);
+      throw error;
+    }
   }
 
   /** Interior session id; what the UI and `sessions.json` carry. */
@@ -173,7 +186,12 @@ export class AgentHost {
   }
 
   answerDialog(requestId: string, answer: UiAnswer): void {
-    this.#post({ type: "ui_response", requestId, answer });
+    try {
+      this.#post({ type: "ui_response", requestId, answer });
+    } catch {
+      // The worker that asked the question is gone; there is nobody left to
+      // receive the answer.
+    }
   }
 
   /**
@@ -196,18 +214,24 @@ export class AgentHost {
         level: "warning",
         message: "停止没有生效，正在重启这个会话的 worker",
       });
-      this.#inFlight = false;
-      void this.restart();
+      // `#restart` ends the turn and reports it; clearing `#inFlight` here would
+      // hide that from the caller.
+      void this.restart().catch(() => undefined);
     }, this.#options.abortGraceMs ?? DEFAULT_ABORT_GRACE);
   }
 
-  /** The turn ended — either pi said so, or the worker is gone. */
-  #endTurn(): void {
+  /**
+   * The turn ended — either pi said so, or the worker is going away.
+   * Returns whether a turn was actually running.
+   */
+  #endTurn(): boolean {
+    const wasInFlight = this.#inFlight;
     this.#inFlight = false;
     if (this.#abortTimer) {
       clearTimeout(this.#abortTimer);
       this.#abortTimer = null;
     }
+    return wasInFlight;
   }
 
   /**
@@ -237,20 +261,28 @@ export class AgentHost {
 
   async #restart(): Promise<void> {
     this.#restarts = 0;
-    const previous = this.#worker;
-    if (previous) {
-      this.#expectedExits += 1;
-      try {
-        previous.post({ type: "shutdown" });
-      } catch {
-        // already gone
+    // End the turn before the process goes away, so the abort timer stops and
+    // the caller is told. The report waits until the replacement is ready: the
+    // UI should stay busy while there is no worker to prompt.
+    const interrupted = this.#endTurn();
+    try {
+      const previous = this.#worker;
+      if (previous) {
+        this.#expectedExits += 1;
+        try {
+          previous.post({ type: "shutdown" });
+        } catch {
+          // already gone
+        }
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        previous.kill();
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        this.#worker = null;
       }
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      previous.kill();
-      await new Promise((resolve) => setTimeout(resolve, 150));
-      this.#worker = null;
+      await this.#spawn();
+    } finally {
+      if (interrupted) this.#options.onTurnEnd?.({ reason: "replaced" });
     }
-    await this.#spawn();
   }
 
   dispose(): Promise<void> {
@@ -365,7 +397,11 @@ export class AgentHost {
     });
 
     worker.onExit((code, signal) => {
-      this.#endTurn();
+      // Only the worker this host currently owns can end the current turn. A
+      // late exit from a worker that was already replaced must not clear a
+      // newer turn's timer or report it as ended.
+      const current = this.#worker === worker;
+      const interrupted = current ? this.#endTurn() : false;
       if (this.#disposed) {
         settleReady();
         return;
@@ -375,7 +411,7 @@ export class AgentHost {
         settleReady();
         return;
       }
-      if (this.#worker !== worker) {
+      if (!current) {
         // A worker that was already replaced is not the app's problem any more.
         settleReady();
         return;
@@ -385,6 +421,7 @@ export class AgentHost {
       if (!settled)
         rejectReady?.(new Error(`agent worker exited during startup (code=${code}, signal=${signal})`));
       settleReady();
+      if (interrupted) this.#options.onTurnEnd?.({ reason: "crashed" });
       void this.#recover(code, signal);
     });
 
@@ -450,8 +487,18 @@ function createForkedChild(entry: string): WorkerHandle {
     execArgv: ["--experimental-strip-types", "--no-warnings"],
     stdio: ["ignore", "inherit", "inherit", "ipc"],
   });
+  // Sending to a worker that just died reports the closed channel as an
+  // `error` event on the child. The host already learns about the death from
+  // `exit`; without this listener the report would crash the main process.
+  child.on("error", () => undefined);
   return {
-    post: (message) => child.send(message),
+    post: (message) => {
+      try {
+        child.send(message);
+      } catch {
+        // The channel closed between the exit and this write.
+      }
+    },
     onMessage: (handler) => child.on("message", (raw) => handler(raw as WorkerToHost)),
     onExit: (handler) => child.on("exit", (code, signal) => handler(code, signal)),
     kill: () => {
@@ -483,7 +530,13 @@ function createUtilityProcess(entry: string): WorkerHandle {
     serviceName: "harness-agent-worker",
   });
   return {
-    post: (message) => child.postMessage(message),
+    post: (message) => {
+      try {
+        child.postMessage(message);
+      } catch {
+        // The utility process is gone; `exit` has already been reported.
+      }
+    },
     onMessage: (handler) => child.on("message", (raw: unknown) => handler(raw as WorkerToHost)),
     onExit: (handler) => child.on("exit", (code: number) => handler(code, null)),
     kill: () => child.kill(),

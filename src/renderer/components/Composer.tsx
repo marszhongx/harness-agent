@@ -1,6 +1,7 @@
 import { type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
 import { agent, type ModelInfo, type PromptImage } from "../lib/agent";
 import { supportedThinkingLevels, THINKING_LEVELS } from "../lib/thinking";
+import { getModel, useModel, useModelSync } from "../store/model";
 import {
   getRunConfig,
   useCurrentModel,
@@ -30,14 +31,16 @@ interface ComposerProps {
 }
 
 export default function Composer({ sessionId, busy, onSend }: ComposerProps) {
-  const models = useRunConfig((state) => state.models);
-  const defaultModel = useRunConfig((state) => state.defaultModel);
+  const models = useModel((state) => state.available);
+  const defaultModel = useModel((state) => state.defaultModel);
   const thinking = useCurrentThinking(sessionId);
   const workspacePath = useRunConfig((state) => state.getWorkspace(sessionId));
   const currentModel = useCurrentModel(sessionId);
   useRunConfigSync(sessionId);
+  // The catalogue is global; the composer is one of the places that needs it.
+  useModelSync();
 
-  const { chooseModel, chooseThinking, setDefaultModel } = getRunConfig();
+  const { chooseModel, chooseThinking } = getRunConfig();
 
   const [text, setText] = useState("");
   const [images, setImages] = useState<Array<PromptImage & { id: number }>>([]);
@@ -214,7 +217,7 @@ export default function Composer({ sessionId, busy, onSend }: ComposerProps) {
                 setMenu(null);
               }}
               onDefault={async (provider, id) => {
-                await setDefaultModel(provider, id);
+                await getModel().setDefaultModel(provider, id);
               }}
             />
           ) : (

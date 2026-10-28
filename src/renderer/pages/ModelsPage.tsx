@@ -1,37 +1,42 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { PlusIcon, RefreshIcon, TrashIcon } from "../components/Icons";
-import { agent, type ProviderSummary } from "../lib/agent";
+import type { ProviderSummary } from "../lib/agent";
+import { getModel, useModel, useModelSync } from "../store/model";
 import ui from "../styles/ui.module.css";
 
 /**
- * `models.json` is pi's file, so this page edits it rather than keeping its own
- * copy: every change is written back and followed by a worker restart.
+ * `models.json` is pi's file, so this page edits it through the shared catalogue
+ * store. The composer subscribes to the same store, which is why a write here is
+ * in its model menu the next time it renders.
  *
  * Providers are peers in one divided panel; the two forms are folded away until
  * asked for, because they are used far less often than reading the list.
  */
 export default function ModelsPage() {
-  const [providers, setProviders] = useState<ProviderSummary[]>([]);
+  const providers = useModel((state) => state.providers);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  // Opening the page should show the file as it is now, not a catalogue that
+  // happened to be loaded at launch.
+  useModelSync(true);
 
-  const load = useCallback(async () => {
-    setProviders(await agent().modelsList());
-  }, []);
+  const failure = (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause));
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const run = async (action: () => Promise<ProviderSummary[]>) => {
+  /** Run one write and surface its failure next to the list. */
+  const run = async (action: () => Promise<void>) => {
     setError(null);
     try {
-      setProviders(await action());
+      await action();
       return true;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      failure(cause);
       return false;
     }
+  };
+
+  const refresh = () => {
+    setError(null);
+    void getModel().load(true).catch(failure);
   };
 
   return (
@@ -55,7 +60,7 @@ export default function ModelsPage() {
               className={ui.iconBtn}
               aria-label="重新读取"
               title="重新读取 models.json"
-              onClick={() => void load()}
+              onClick={refresh}
             >
               <RefreshIcon />
             </button>
@@ -68,7 +73,7 @@ export default function ModelsPage() {
             <div className={`${ui.card} ${ui.empty}`}>还没有接入模型服务，点右上角的 + 添加一个。</div>
           ) : null}
           {providers.map((provider) => (
-            <ProviderRow key={provider.id} provider={provider} onChanged={setProviders} onError={setError} />
+            <ProviderRow key={provider.id} provider={provider} onError={setError} />
           ))}
 
           {creating ? (
@@ -79,7 +84,7 @@ export default function ModelsPage() {
                 const form = event.currentTarget;
                 const data = new FormData(form);
                 const saved = await run(() =>
-                  agent().saveProvider(String(data.get("id") ?? "").trim(), {
+                  getModel().saveProvider(String(data.get("id") ?? "").trim(), {
                     baseUrl: String(data.get("baseUrl") ?? "").trim(),
                     api: String(data.get("api") ?? "").trim(),
                     apiKey: String(data.get("apiKey") ?? ""),
@@ -131,15 +136,15 @@ export default function ModelsPage() {
 
 function ProviderRow({
   provider,
-  onChanged,
   onError,
 }: {
   provider: ProviderSummary;
-  onChanged: (next: ProviderSummary[]) => void;
   onError: (message: string | null) => void;
 }) {
   const [armed, setArmed] = useState(false);
   const [adding, setAdding] = useState(false);
+
+  const failure = (cause: unknown) => onError(cause instanceof Error ? cause.message : String(cause));
 
   const remove = async () => {
     if (!armed) {
@@ -149,9 +154,9 @@ function ProviderRow({
     }
     onError(null);
     try {
-      onChanged(await agent().removeProvider(provider.id));
+      await getModel().removeProvider(provider.id);
     } catch (cause) {
-      onError(cause instanceof Error ? cause.message : String(cause));
+      failure(cause);
     }
   };
 
@@ -201,10 +206,7 @@ function ProviderRow({
               className={ui.btn}
               title="移除这个模型"
               onClick={() => {
-                void agent()
-                  .removeModel(provider.id, model.id)
-                  .then(onChanged)
-                  .catch((cause: unknown) => onError(cause instanceof Error ? cause.message : String(cause)));
+                void getModel().removeModel(provider.id, model.id).catch(failure);
               }}
             >
               ×
@@ -223,17 +225,15 @@ function ProviderRow({
             const size = Number(String(data.get("contextWindow") ?? "").replace(/[^0-9]/g, ""));
             onError(null);
             try {
-              onChanged(
-                await agent().addModel(provider.id, {
-                  id: String(data.get("id") ?? "").trim(),
-                  name: String(data.get("name") ?? "").trim() || undefined,
-                  contextWindow: size || undefined,
-                }),
-              );
+              await getModel().addModel(provider.id, {
+                id: String(data.get("id") ?? "").trim(),
+                name: String(data.get("name") ?? "").trim() || undefined,
+                contextWindow: size || undefined,
+              });
               form.reset();
               setAdding(false);
             } catch (cause) {
-              onError(cause instanceof Error ? cause.message : String(cause));
+              failure(cause);
             }
           }}
         >

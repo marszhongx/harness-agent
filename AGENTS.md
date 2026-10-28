@@ -26,8 +26,8 @@
 - 事件按 `sessionId` 分流：`store/transcript.ts` 用一个共享的 `agent().onEvent` 订阅把消息路由到对应会话的 store，后台会话继续流式推进而不触发当前视图重渲染。
 - 状态库只有 zustand（vanilla store，不挂在 React 树上的 Provider 里）：跨组件数据才进 store，组件自己的东西仍是 `useState`。不要为一个使用者建 store。
 - `store/` 一个模块一个 `create()` store，state + getter + action 全在 store 里。按会话分的数据放 store 里的 `Map`，key 是 sessionId（`""` 是还没签发的草稿页），不要为每个会话造一个 store。
-- 拿值用单个 field 的选择器：`useTranscripts((s) => s.getItems(id))`、`useSessions((s) => s.list)`。要两个值就写两次订阅。不要写返回新对象的选择器（`(s) => ({ a: s.a, b: s.b })`），也不要拿 `useShallow` 去补——那说明该拆 store 了。
-- 命令式访问统一走 `export const getX = useX.getState`（`getTranscripts()` / `getSessions()` / `getRunConfig()`），不要在模块级另造一批 `setXxx()` 包装。
+- 拿值用单个 field 的选择器：`useTranscript((s) => s.getItems(id))`、`useSession((s) => s.list)`。要两个值就写两次订阅。不要写返回新对象的选择器（`(s) => ({ a: s.a, b: s.b })`），也不要拿 `useShallow` 去补——那说明该拆 store 了。
+- 命令式访问统一走 `export const getX = useX.getState`（`getTranscript()` / `getSession()` / `getRunConfig()`），不要在模块级另造一批 `setXxx()` 包装。
 - 改 Map 一律 copy-on-write（`new Map(prev)` 再 `set`），否则 zustand 的浅比较看不到变化。
 - 每个 store 配一个 `useXSync()` 挂 `agent().onEvent`；它按组件引用计数装卸（`store/agent-stream.ts`），不要在模块顶层订阅。
 
