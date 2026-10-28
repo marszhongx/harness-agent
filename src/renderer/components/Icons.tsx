@@ -63,10 +63,13 @@ export const ScheduleIcon = glyph(
   </>,
 );
 
+/** Settings: three sliders — a gear turns to mush at 16px, this stays legible. */
 export const SettingsIcon = glyph(
   <>
-    <circle cx="12" cy="12" r="3" />
-    <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+    <path d="M4 7h16M4 12h16M4 17h16" />
+    <circle cx="9" cy="7" r="2" />
+    <circle cx="15" cy="12" r="2" />
+    <circle cx="8" cy="17" r="2" />
   </>,
 );
 
@@ -89,8 +92,8 @@ export const PanelIcon = glyph(
 /** Reload: a circular arrow whose head corners are 90°, on the 30° grid. */
 export const RefreshIcon = glyph(
   <>
-    <path d="M20 11a8 8 0 1 0-.9 4.4" />
-    <path d="M20 4v7h-7" />
+    <path d="M20.5 12a8.5 8.5 0 1 1-2.5-6" />
+    <path d="M20.5 3.5v5.5H15" />
   </>,
 );
 
@@ -135,17 +138,17 @@ export const WarningIcon = glyph(
 );
 
 /**
- * Thinking level: a brain, drawn as one half mirrored across the seam so the two
- * lobes are exactly symmetric. No inner gyri — at 16px they merge into a smear.
+ * Thinking level: a brain. The two lobes are one path mirrored, plus the fold in
+ * the middle; drawn on a 4-unit grid (Lucide's brain, ISC) so it stays upright
+ * and readable at 16px instead of turning into a wide blob.
  */
-const brainHalf = (
-  <path d="M12 5.2H9.4A3.6 3.6 0 0 0 5.9 8.8v.2A3 3 0 0 0 4.9 15a3 3 0 0 0 2.1 4.4A3.6 3.6 0 0 0 12 18.8z" />
-);
+const brainHalf = <path d="M12 5a3 3 0 1 0-6 .1 4 4 0 0 0-2.5 5.8 4 4 0 0 0 .5 6.6A4 4 0 0 0 12 18z" />;
 
 export const ThinkingIcon = glyph(
   <>
     {brainHalf}
     <g transform="scale(-1 1) translate(-24 0)">{brainHalf}</g>
+    <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" />
   </>,
 );
 
