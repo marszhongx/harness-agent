@@ -22,8 +22,11 @@ RECTS = [
     (25, 3, 4, 26, 1.4),
     (22, 3, 7, 4, 1.4),
     (22, 25, 7, 4, 1.4),
-    (13, 13, 6, 6, 1.1),
 ]
+
+# The same caret as the app icon: two thick strokes meeting at a point.
+CARET = [(12.5, 11.5), (19, 16), (12.5, 20.5)]
+CARET_HALF_WIDTH = 2.1
 
 
 def inside(x, y, rect):
@@ -37,6 +40,21 @@ def inside(x, y, rect):
     return qx * qx + qy * qy <= radius * radius
 
 
+def distance_to_segment(x, y, a, b):
+    ax, ay = a
+    bx, by = b
+    dx, dy = bx - ax, by - ay
+    length = dx * dx + dy * dy
+    t = 0 if length == 0 else max(0, min(1, ((x - ax) * dx + (y - ay) * dy) / length))
+    return ((x - (ax + t * dx)) ** 2 + (y - (ay + t * dy)) ** 2) ** 0.5
+
+
+def on_caret(x, y):
+    return any(
+        distance_to_segment(x, y, CARET[i], CARET[i + 1]) <= CARET_HALF_WIDTH for i in range(len(CARET) - 1)
+    )
+
+
 def coverage(px, py, size, samples=4):
     unit = 32 / size
     hits = 0
@@ -44,7 +62,7 @@ def coverage(px, py, size, samples=4):
         for sx in range(samples):
             x = (px + (sx + 0.5) / samples) * unit
             y = (py + (sy + 0.5) / samples) * unit
-            if any(inside(x, y, rect) for rect in RECTS):
+            if any(inside(x, y, rect) for rect in RECTS) or on_caret(x, y):
                 hits += 1
     return hits / (samples * samples)
 
