@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { AppIcon, ElectronIcon, NodeIcon } from "../components/Icons";
+import { ElectronIcon, NodeIcon } from "../components/Icons";
+import Logo from "../components/Logo";
 import { agent, type SettingsSnapshot } from "../lib/agent";
 import ui from "../styles/ui.module.css";
 
@@ -114,7 +115,7 @@ export default function SettingsPage() {
             <div className={ui.settingBody}>
               <div className={ui.versionRow}>
                 <span className={ui.versionItem}>
-                  <AppIcon />
+                  <Logo size={16} />
                   <span className={ui.versionLabel}>{state.appName}</span>
                   <span className={ui.versionValue}>{state.appVersion}</span>
                 </span>

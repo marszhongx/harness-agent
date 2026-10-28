@@ -97,26 +97,6 @@ export function CloseIcon() {
   );
 }
 
-export function AppIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      focusable="false"
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="3" y="3" width="18" height="18" rx="4" />
-      <path d="M8 9h8M8 13h5" />
-    </svg>
-  );
-}
-
 export function ElectronIcon() {
   return (
     <svg

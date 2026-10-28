@@ -5,7 +5,6 @@ import { useTranscripts } from "../store/transcript";
 import layout from "../styles/layout.module.css";
 import ConfirmDialog from "./ConfirmDialog";
 import { TrashIcon } from "./Icons";
-import Logo from "./Logo";
 
 export type View = "chat" | "models" | "skills" | "settings";
 
@@ -97,7 +96,6 @@ export default function Sidebar({
       <div className={layout.dragChrome} />
       <div className={layout.sidebarHead}>
         <div className={layout.logo}>
-          <Logo size={24} />
           <span className={layout.logoName}>harness-agent</span>
         </div>
         <button
