@@ -56,6 +56,9 @@ export interface ModelInfo {
   id: string;
   name: string;
   contextWindow?: number;
+  reasoning?: boolean;
+  /** A level mapped to `null` is not available for this model. */
+  thinkingLevelMap?: Record<string, string | null>;
 }
 
 /** Messages the worker sends to the main process. */
@@ -93,7 +96,8 @@ export type WorkerToHost =
   | { type: "status"; statusKey: string; text?: string }
   | { type: "notify"; level: "info" | "warning" | "error"; message: string }
   | { type: "settled"; requestId: string; reason: "agent_end" | "agent_settled"; willRetry: boolean }
-  | { type: "error"; requestId?: string; message: string; fatal: boolean }
+  /** `turnEnded` is true when this error means the prompt's turn is over. */
+  | { type: "error"; requestId?: string; message: string; fatal: boolean; turnEnded?: boolean }
   | { type: "ui_request"; requestId: string; request: DialogRequest };
 
 /** A blocking dialog request the renderer must answer. */

@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ApprovalCard from "./components/ApprovalCard";
 import Sidebar from "./components/Sidebar";
+import Tag from "./components/Tag";
 import { installMockAgent } from "./test/mock-agent";
 import { resetStores } from "./test/reset";
 
@@ -12,6 +13,20 @@ const sessions = [
   { id: "session-1", title: "第一个会话", updatedAt: Date.now() },
   { id: "session-2", title: "第二个会话", updatedAt: Date.now() - 3_600_000 },
 ];
+
+describe("Tag", () => {
+  it("renders its content and forwards role, title, and label", () => {
+    render(
+      <Tag tone="warn" role="status" title="仅手动调用" aria-label="仅手动调用">
+        仅手动调用
+      </Tag>,
+    );
+
+    const tag = screen.getByRole("status", { name: "仅手动调用" });
+    expect(tag.getAttribute("title")).toBe("仅手动调用");
+    expect(tag.textContent).toBe("仅手动调用");
+  });
+});
 
 describe("ApprovalCard", () => {
   it("answers a confirm dialog", () => {
@@ -31,7 +46,7 @@ describe("ApprovalCard", () => {
 
   it("sends a deny answer", () => {
     const onAnswer = vi.fn();
-    render(<ApprovalCard dialog={{ method: "confirm", title: "删除?" }} onAnswer={onAnswer} />);
+    render(<ApprovalCard dialog={{ method: "confirm", title: "删除?", message: "" }} onAnswer={onAnswer} />);
     fireEvent.click(screen.getByText("拒绝"));
     expect(onAnswer).toHaveBeenCalledWith({ kind: "confirm", confirmed: false });
   });

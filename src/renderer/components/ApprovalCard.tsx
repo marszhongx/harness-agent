@@ -18,6 +18,12 @@ export default function ApprovalCard({
   // per dialog. An editor starts from what pi offered to edit.
   const [value, setValue] = useState(dialog.method === "editor" ? (dialog.prefill ?? "") : "");
   const request = dialog;
+  const subtitle =
+    request.method === "confirm"
+      ? request.message
+      : request.method === "input"
+        ? (request.placeholder ?? "")
+        : "";
 
   const answer = (): UiAnswer => {
     switch (request.method) {
@@ -40,7 +46,7 @@ export default function ApprovalCard({
           <WarningIcon size={15} />
           <span>{request.title || "需要确认"}</span>
         </h3>
-        <p>{request.message ?? request.placeholder ?? ""}</p>
+        {subtitle ? <p>{subtitle}</p> : null}
 
         {request.method === "select" && request.options ? (
           <div className={ui.row}>
@@ -61,7 +67,7 @@ export default function ApprovalCard({
           <textarea
             className={`${ui.fieldInput} ${ui.fieldGrow}`}
             rows={3}
-            placeholder={request.placeholder ?? ""}
+            placeholder={request.method === "input" ? (request.placeholder ?? "") : ""}
             value={value}
             onChange={(event) => setValue(event.currentTarget.value)}
           />

@@ -12,6 +12,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { agentDir } from "./pi-settings.ts";
+import type { ModelInfo } from "./protocol.ts";
 
 export interface ModelEntry {
   id: string;
@@ -89,12 +90,7 @@ export function listProviders(env: NodeJS.ProcessEnv = process.env): ProviderSum
 }
 
 /** A model the agent can be switched to, in the shape the UI wants. */
-export interface AvailableModel {
-  provider: string;
-  id: string;
-  name: string;
-  contextWindow?: number;
-}
+export type AvailableModel = ModelInfo;
 
 /**
  * The model catalogue, computed instead of asked for.

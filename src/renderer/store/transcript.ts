@@ -130,7 +130,10 @@ export const useTranscript = create<TranscriptState>((set, get) => {
             ...items,
             { id: nextItemId(), kind: "notice", text: String(event.message ?? "未知错误"), error: true },
           ]);
-          return get().setBusy(sessionId, false);
+          // A command error (failed model/thinking switch, a duplicate prompt)
+          // must not stop the spinner for the turn that is still running.
+          if (event.fatal === true || event.turnEnded === true) return get().setBusy(sessionId, false);
+          return;
         case "notify":
           return setItems(sessionId, [
             ...items,

@@ -6,7 +6,8 @@
  * utilityProcess owned by `AgentHost`.
  *
  * Layout: src/main is the shell, src/preload the only bridge, src/renderer the
- * UI, src/host everything that does not need the electron module.
+ * UI, src/host everything that does not need the electron module, and
+ * src/shared the IPC contract both sides of the bridge use.
  *
  * Run:
  *   pnpm dev                                  # normal app
@@ -14,7 +15,15 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -56,7 +65,8 @@ import { SessionStore } from "../host/session-store.ts";
 import { listSkills, readSkillFile, removeSkill } from "../host/skills.ts";
 import { readTranscript } from "../host/transcript-file.ts";
 import { checkWorkspace, ensureDefaultWorkspace } from "../host/workspace.ts";
-import { IpcAction } from "../preload/ipc-action.ts";
+import type { AgentStatus, ModelProbe, SessionSummary, SettingsSnapshot } from "../shared/contract.ts";
+import { IpcAction } from "../shared/ipc-action.ts";
 
 app.setName("harness-agent");
 
@@ -160,8 +170,13 @@ function resolveDefaultModel(): DefaultModel | null {
  * app quits.
  */
 const hosts = new Map<string, AgentHost>();
+/** Temporary hosts used by the model test button; not sessions, not in `hosts`. */
+const probeHosts = new Set<AgentHost>();
 /** Sessions with a turn in flight, so quit can ask before interrupting them. */
 const workingSessions = new Set<string>();
+
+/** Sessions whose model/skill config changed while their turn was running. */
+const reloadOnSettle = new Set<string>();
 
 function hostFor(sessionId: string): AgentHost | undefined {
   return hosts.get(sessionId);
@@ -213,17 +228,12 @@ function defaultWorkspace(): string {
 }
 
 /**
- * A session's working directory is fixed when it is created.
- *
- * pi records the cwd in the session header and refuses to reopen the session
- * from anywhere else, so this is not a preference — it is part of the session's
- * identity, and nothing in the app changes it afterwards.
- */
-/**
  * The folder a conversation works in, as recorded. No checks here: `status` may
  * report a path that has since been deleted, so the view can say why it broke.
+ * A draft has an id before it has an index entry; its folder is still a choice.
  */
 function sessionWorkspacePath(sessionId: string): string {
+  if (isDraft(sessionId)) return drafts.workspacePath(defaultWorkspace());
   return store.get(sessionId)?.workspacePath ?? ensureDefaultWorkspace(defaultWorkspace);
 }
 
@@ -329,8 +339,21 @@ function forwardToRenderer(sessionId: string, message: WorkerToHost): void {
   if (message.type === "settled" || (message.type === "error" && message.fatal)) {
     cancelDialogs(sessionId);
   }
-  if (message.type === "settled" || message.type === "error") {
+  // Only a settled turn or a turn-ending error means the session is idle again.
+  // A command error (a failed thinking-level switch, a duplicate prompt) leaves
+  // the running turn alone.
+  const endsTurn =
+    message.type === "settled" || (message.type === "error" && (message.fatal || message.turnEnded === true));
+  if (endsTurn) {
     workingSessions.delete(sessionId);
+    if (message.type === "error" && message.fatal) {
+      // The host's crash recovery spawns a worker that reads the new config.
+      reloadOnSettle.delete(sessionId);
+    } else {
+      reloadWhenSettled(sessionId);
+    }
+  }
+  if (message.type === "settled" || message.type === "error") {
     logger.info(
       message.type,
       message.type === "error" ? { sessionId, error: message.message } : { sessionId },
@@ -509,7 +532,7 @@ function createTray(): void {
 }
 
 function registerIpc(): void {
-  ipcMain.handle(IpcAction.agent.status, (_event, requested?: string) => {
+  ipcMain.handle(IpcAction.agent.status, (_event, requested?: string): AgentStatus => {
     const sessionId = typeof requested === "string" ? requested : "";
     const live = hostFor(sessionId);
     return {
@@ -517,7 +540,10 @@ function registerIpc(): void {
       piSessionId: live?.piSessionId ?? null,
       sessionFile: live?.sessionFile ?? store.get(sessionId)?.sessionFile ?? null,
       model: live?.model ?? store.get(sessionId)?.model?.id ?? resolveDefaultModel()?.id ?? null,
-      workspacePath: sessionId ? sessionWorkspacePath(sessionId) : drafts.workspacePath(defaultWorkspace()),
+      workspacePath:
+        !sessionId || isDraft(sessionId)
+          ? drafts.workspacePath(defaultWorkspace())
+          : sessionWorkspacePath(sessionId),
       working: workingSessions.has(sessionId),
       workerPid: live?.workerPid ?? null,
     };
@@ -553,7 +579,7 @@ function registerIpc(): void {
   );
   // `working` comes from the live process set, so a reloaded window can trust
   // the list instead of keeping its own guess.
-  ipcMain.handle(IpcAction.agent.listSessions, () =>
+  ipcMain.handle(IpcAction.agent.listSessions, (): SessionSummary[] =>
     store.list().map((entry) => ({ ...entry, working: workingSessions.has(entry.id) })),
   );
   ipcMain.handle(IpcAction.agent.defaultThinkingLevel, () => readDefaultThinkingLevel());
@@ -576,6 +602,7 @@ function registerIpc(): void {
       await live.dispose().catch(() => undefined);
     }
     workingSessions.delete(id);
+    reloadOnSettle.delete(id);
     drafts.forget(id);
     if (entry.sessionFile) {
       try {
@@ -634,6 +661,14 @@ function registerIpc(): void {
     removeModel(providerId, modelId);
     await reloadWorker();
   });
+  ipcMain.handle(IpcAction.models.test, async (_event, provider: string, model: string) => {
+    if (typeof provider !== "string" || typeof model !== "string") {
+      return { ok: false, error: "provider/model 不能为空" };
+    }
+    const result = await probeModel(provider, model);
+    logger.info("model probe", { provider, model, ok: result.ok, error: result.error });
+    return result;
+  });
 
   // ── skills ────────────────────────────────────────────────────────────────
   ipcMain.handle(IpcAction.skills.list, () => listSkills(defaultWorkspace()));
@@ -645,7 +680,7 @@ function registerIpc(): void {
   ipcMain.handle(IpcAction.skills.read, (_event, dir: string) => readSkillFile(dir, defaultWorkspace()));
 
   // ── settings ──────────────────────────────────────────────────────────────
-  const settingsSnapshot = () => ({
+  const settingsSnapshot = (): SettingsSnapshot => ({
     theme: appSettings.value.theme,
     launchAtLogin: appSettings.value.launchAtLogin,
     workspacePath: defaultWorkspace(),
@@ -753,8 +788,25 @@ function promoteDraft(firstMessage: string): void {
 
 /** Models and skills are read by pi at startup, so a change is only live after a respawn. */
 async function reloadWorker(): Promise<void> {
-  // Models and skills are read at startup, so every live conversation restarts.
-  await Promise.all([...hosts.values()].map((live) => live.restart().catch(() => undefined)));
+  // A running turn should not be killed for a settings edit; remember the
+  // session and replace its worker once it settles.
+  await Promise.all(
+    [...hosts.entries()].map(async ([sessionId, live]) => {
+      if (workingSessions.has(sessionId)) {
+        reloadOnSettle.add(sessionId);
+        return;
+      }
+      await live.restart().catch(() => undefined);
+    }),
+  );
+}
+
+/** Apply a model/skill change that arrived during a turn. */
+function reloadWhenSettled(sessionId: string): void {
+  if (!reloadOnSettle.delete(sessionId)) return;
+  void hostFor(sessionId)
+    ?.restart()
+    .catch(() => undefined);
 }
 
 /** Appearance follows `prefers-color-scheme`, which Electron derives from this. */
@@ -846,6 +898,8 @@ async function startHost(sessionId: string): Promise<AgentHost> {
       // state a normal settle would, so the composer is usable again.
       logger.info("turn ended", { sessionId, reason });
       workingSessions.delete(sessionId);
+      // The host is already replacing the worker, so it will read the new config.
+      reloadOnSettle.delete(sessionId);
       cancelDialogs(sessionId);
       send(IpcAction.agent.event, { type: "settled", sessionId });
     },
@@ -857,6 +911,8 @@ async function startHost(sessionId: string): Promise<AgentHost> {
       // Without this the app would think a turn is still running and ask before
       // every quit, even when the crash happened between turns.
       workingSessions.delete(sessionId);
+      // The recovery spawn reads the new config; no second restart is needed.
+      reloadOnSettle.delete(sessionId);
       send(IpcAction.agent.event, {
         type: "notify",
         message: `worker 已重启（第 ${info.attempt} 次）`,
@@ -867,6 +923,78 @@ async function startHost(sessionId: string): Promise<AgentHost> {
   hosts.set(sessionId, started);
   logger.debug("worker started", { sessionId, pid: started.workerPid });
   return started;
+}
+
+/**
+ * One-off connectivity check for a model, behind the Models page's test button.
+ *
+ * It uses a temporary worker/pi so no session is opened, no index entry or
+ * transcript is written, and nothing survives the request. The result is
+ * returned to the page only; it is deliberately not stored in the model store.
+ */
+const PROBE_PROMPT = "Reply with exactly: MODEL_OK";
+const PROBE_TIMEOUT_MS = 45_000;
+
+async function probeModel(provider: string, model: string): Promise<ModelProbe> {
+  if (!provider || !model) return { ok: false, error: "provider/model 不能为空" };
+  const root = mkdtempSync(join(app.getPath("temp"), "harness-model-probe-"));
+  try {
+    const cwd = join(root, "workspace");
+    const sessionDir = join(root, "sessions");
+    mkdirSync(cwd, { recursive: true });
+    mkdirSync(sessionDir, { recursive: true });
+
+    let reply = "";
+    let settled = false;
+    let resolveProbe: (result: ModelProbe) => void = () => undefined;
+    const result = new Promise<ModelProbe>((resolve) => {
+      resolveProbe = resolve;
+    });
+    const finish = (next: ModelProbe) => {
+      if (settled) return;
+      settled = true;
+      resolveProbe(next);
+    };
+    const timer = setTimeout(() => finish({ ok: false, error: "测试超时" }), PROBE_TIMEOUT_MS);
+
+    let host: AgentHost | null = null;
+    try {
+      host = await AgentHost.start({
+        workerEntry,
+        piCliPath,
+        cwd,
+        sessionDir,
+        sessionIdPrefix: app.getName(),
+        provider,
+        model,
+        // A probe should fail fast, not retry a broken connection.
+        maxRestarts: 0,
+        readyTimeoutMs: 30_000,
+        askUser: () => ({ kind: "cancel" }),
+        onEvent: (message) => {
+          if (message.type === "text_delta") reply += message.delta;
+          else if (message.type === "settled") {
+            finish({ ok: reply.trim().length > 0, reply: reply.trim().slice(0, 200) });
+          } else if (message.type === "error" && (message.fatal || message.turnEnded === true)) {
+            finish({ ok: false, error: message.message });
+          }
+        },
+      });
+      probeHosts.add(host);
+      await host.prompt(PROBE_PROMPT);
+      return await result;
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    } finally {
+      clearTimeout(timer);
+      if (host) {
+        probeHosts.delete(host);
+        await host.dispose().catch(() => undefined);
+      }
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 }
 
 // ── headless smoke path ─────────────────────────────────────────────────────
@@ -1024,5 +1152,7 @@ app.on("will-quit", () => {
   // the app disappears first nothing is left running. This is the polite path.
   for (const live of hosts.values()) void live.dispose();
   hosts.clear();
+  for (const probe of probeHosts) void probe.dispose();
+  probeHosts.clear();
   void quitting;
 });

@@ -3,8 +3,8 @@
  *
  * A skill is a directory holding `SKILL.md`; this module does not implement
  * skills — pi does — it only lists what pi would discover, so the app can show
- * them and open their folder. Nothing here is written to pi's own files except
- * the "new skill" scaffold the user explicitly asks for.
+ * them and open their folder. The only write here is an explicitly confirmed
+ * delete, guarded to the roots listed below.
  *
  * Discovery mirrors pi's documented locations, in pi's precedence order:
  *   <workspace>/.pi/skills, <workspace>/.agents/skills,

@@ -114,6 +114,7 @@ export function installMockAgent(options: MockOptions = {}): MockAgent {
     removeProvider: vi.fn(async () => undefined),
     addModel: vi.fn(async () => undefined),
     removeModel: vi.fn(async () => undefined),
+    testModel: vi.fn(async () => ({ ok: true, reply: "MODEL_OK" })),
     skillsList: vi.fn(async () => options.skills ?? []),
     removeSkill: vi.fn(async () => undefined),
     revealSkill: vi.fn(async () => undefined),

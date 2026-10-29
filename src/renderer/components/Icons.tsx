@@ -101,6 +101,20 @@ export const FolderIcon = glyph(
   <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />,
 );
 
+/** Run a check: a play triangle. */
+export const TestIcon = glyph(<path d="M8 5.5 19 12 8 18.5V5.5Z" />);
+
+/** A passed check, for test-result tags. */
+export const CheckIcon = glyph(<path d="m4.5 12.5 5 5 10-11" />);
+
+/** A rotating arc: work in progress. */
+export const LoadingIcon = glyph(
+  <>
+    <circle cx="12" cy="12" r="8.5" opacity="0.3" />
+    <path d="M20.5 12a8.5 8.5 0 0 0-8.5-8.5" />
+  </>,
+);
+
 export const ChevronDownIcon = glyph(<path d="m6 9 6 6 6-6" />);
 export const ChevronRightIcon = glyph(<path d="m9 18 6-6-6-6" />);
 

@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import Sidebar, { type View } from "./components/Sidebar";
 import { agent } from "./lib/agent";
 import ChatPage from "./pages/ChatPage";
-import ModelsPage from "./pages/ModelsPage";
+import ModelPage from "./pages/ModelPage";
 import SettingsPage from "./pages/SettingsPage";
 import SkillsPage from "./pages/SkillsPage";
 import { getDialog, useDialogSync } from "./store/dialog";
@@ -63,7 +63,7 @@ export default function App() {
       />
       <main className={layout.main}>
         {view === "chat" && <ChatPage sessionId={sessionId} onEnsureSession={ensureSession} />}
-        {view === "models" && <ModelsPage />}
+        {view === "models" && <ModelPage />}
         {view === "skills" && <SkillsPage />}
         {view === "settings" && <SettingsPage />}
       </main>

@@ -16,8 +16,10 @@
   --primary-color-strong: 205 86.9% 40.1%;
   --info-color: var(--primary-color);
   --success-color: 142 71% 45%;
+  --success-color-strong: 142 71% 28%;
   --warning-color: 38 92% 50%;
   --error-color: 0 72% 51%;
+  --error-color-strong: 0 72% 38%;
 
   /* ── surfaces ────────────────────────────────────────────────────── */
   --body-background: 0 0% 100%;
@@ -116,6 +118,8 @@
 
     --primary-color: 205 100% 57.5%;
     --primary-color-strong: 205 100% 70%;
+    --success-color-strong: 142 55% 66%;
+    --error-color-strong: 0 80% 68%;
     --shadow-2: 0 3px 6px -4px hsl(0 0% 0% / 0.4), 0 6px 16px 0 hsl(0 0% 0% / 0.32);
     --shadow-pop: 0 18px 48px hsl(0 0% 0% / 0.5);
     --scrim: hsl(0 0% 0% / 0.5);

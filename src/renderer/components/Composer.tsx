@@ -9,6 +9,7 @@ import {
   useRunConfig,
   useRunConfigSync,
 } from "../store/run-config";
+import { useSession } from "../store/session";
 import ui from "../styles/ui.module.css";
 import { ChevronDownIcon, FolderIcon, PaperclipIcon, SendIcon, StopIcon, ThinkingIcon } from "./Icons";
 
@@ -36,6 +37,12 @@ export default function Composer({ sessionId, busy, onSend }: ComposerProps) {
   const thinking = useCurrentThinking(sessionId);
   const workspacePath = useRunConfig((state) => state.getWorkspace(sessionId));
   const currentModel = useCurrentModel(sessionId);
+  // A session id exists before the index entry does (the draft that failed its
+  // first send). Not being listed is what still makes the folder changeable.
+  const listed = useSession((state) =>
+    sessionId ? state.list.some((item) => item.id === sessionId) : false,
+  );
+  const drafting = sessionId === null || !listed;
   useRunConfigSync(sessionId);
   // The catalogue is global; the composer is one of the places that needs it.
   useModelSync();
@@ -50,6 +57,9 @@ export default function Composer({ sessionId, busy, onSend }: ComposerProps) {
   const textarea = useRef<HTMLTextAreaElement>(null);
   const modelChip = useRef<HTMLButtonElement>(null);
   const thinkingChip = useRef<HTMLButtonElement>(null);
+  // The first submit is still in flight while the id is being minted; a second
+  // Enter must not start a second conversation.
+  const submitting = useRef(false);
 
   /** Grow the textarea with its content, up to the CSS max-height. */
   const resizeTextarea = (node: HTMLTextAreaElement | null) => {
@@ -72,16 +82,23 @@ export default function Composer({ sessionId, busy, onSend }: ComposerProps) {
       if (sessionId) void agent().abort(sessionId);
       return;
     }
+    if (submitting.current) return;
     if (!currentModel) {
       setMenu("model");
       return;
     }
     const payload = images.map(({ data, mimeType }) => ({ data, mimeType }));
     const trimmed = text.trim() || (payload.length > 0 ? "（见附图）" : "");
+    if (!trimmed) return;
+    submitting.current = true;
     setText("");
     setImages([]);
     resizeTextarea(textarea.current);
-    await onSend(trimmed, payload.length > 0 ? payload : undefined);
+    try {
+      await onSend(trimmed, payload.length > 0 ? payload : undefined);
+    } finally {
+      submitting.current = false;
+    }
   };
 
   const attach = async (files: FileList | null) => {
@@ -143,7 +160,7 @@ export default function Composer({ sessionId, busy, onSend }: ComposerProps) {
             resizeTextarea(event.currentTarget);
           }}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !busy) {
               event.preventDefault();
               void submit();
             }
@@ -234,7 +251,7 @@ export default function Composer({ sessionId, busy, onSend }: ComposerProps) {
       ) : null}
 
       <div className={ui.statusbar}>
-        <WorkspaceChip sessionId={sessionId} workspacePath={workspacePath} />
+        <WorkspaceChip sessionId={sessionId} workspacePath={workspacePath} draft={drafting} />
       </div>
     </div>
   );
@@ -407,13 +424,14 @@ function Popover({
 function WorkspaceChip({
   sessionId,
   workspacePath,
+  draft,
 }: {
   sessionId: string | null;
   workspacePath: string | null;
+  draft: boolean;
 }) {
   if (!workspacePath) return <span className={ui.workspace}>…</span>;
   const name = workspacePath.split("/").filter(Boolean).at(-1) ?? workspacePath;
-  const draft = sessionId === null;
   return (
     <button
       type="button"
@@ -425,7 +443,7 @@ function WorkspaceChip({
         if (draft) {
           void agent()
             .chooseDraftWorkspace()
-            .then(() => getRunConfig().sync(null));
+            .then(() => getRunConfig().sync(sessionId));
           return;
         }
         void agent().revealPath(workspacePath);

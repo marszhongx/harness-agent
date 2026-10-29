@@ -66,10 +66,19 @@ export default function ChatPage({ sessionId, onEnsureSession }: ChatPageProps) 
   useEffect(() => {
     if (!sessionId) return;
     if (getTranscript().getItems(sessionId).length > 0) return;
+    let cancelled = false;
     void (async () => {
       const history = await agent().history(sessionId);
-      if (history && history.length > 0) getTranscript().replace(sessionId, historyToItems(history));
+      if (cancelled || !history || history.length === 0) return;
+      const restored = historyToItems(history);
+      const current = getTranscript().getItems(sessionId);
+      // The user may have sent a message while the file was being read; the
+      // new activity belongs after the restored lines, not under them.
+      getTranscript().replace(sessionId, [...restored, ...current]);
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [sessionId]);
 
   // Approval requests are global (see `store/dialog.ts`); answering removes
@@ -112,7 +121,7 @@ export default function ChatPage({ sessionId, onEnsureSession }: ChatPageProps) 
         </div>
       </div>
 
-      <Composer sessionId={sessionId} busy={busy} onSend={send} />
+      <Composer key={sessionId ?? "draft"} sessionId={sessionId} busy={busy} onSend={send} />
     </section>
   );
 }

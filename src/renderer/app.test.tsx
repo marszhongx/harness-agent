@@ -2,7 +2,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
-import type { ModelInfo } from "./lib/agent";
+import type { ModelInfo, TranscriptItem } from "./lib/agent";
 import SettingsPage from "./pages/SettingsPage";
 import { installMockAgent } from "./test/mock-agent";
 import { resetStores } from "./test/reset";
@@ -126,7 +126,7 @@ describe("App", () => {
 
     // A request from another conversation waits for that conversation, it does
     // not borrow the one on screen.
-    act(() => mock.emitDialog({ method: "confirm", title: "另一个会话" }, "session-2"));
+    act(() => mock.emitDialog({ method: "confirm", title: "另一个会话", message: "等待确认" }, "session-2"));
     expect(screen.queryByText("另一个会话")).toBeNull();
     fireEvent.click(screen.getByText("会话二"));
     expect(await screen.findByText("另一个会话")).toBeTruthy();
@@ -140,7 +140,7 @@ describe("App", () => {
 
     fireEvent.click(await screen.findByText("会话一"));
     await screen.findByText("我能为你做些什么？");
-    act(() => mock.emitDialog({ method: "confirm", title: "会被取消" }));
+    act(() => mock.emitDialog({ method: "confirm", title: "会被取消", message: "等待确认" }));
     expect(await screen.findByText("会被取消")).toBeTruthy();
 
     // Main owns the timeout and the worker lifetime: when it drops the request,
@@ -181,22 +181,73 @@ describe("App", () => {
     render(<App />);
     fireEvent.click(nav("模型"));
     await screen.findByText("hifox");
-    fireEvent.click(screen.getByLabelText("给 hifox 添加模型"));
-    const form = screen.getByPlaceholderText("模型 id").closest("form") as HTMLFormElement;
-    fireEvent.change(within(form).getByPlaceholderText("模型 id"), {
+    fireEvent.click(screen.getByRole("button", { name: "详情" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByLabelText("添加模型"));
+    fireEvent.change(within(dialog).getByLabelText("新模型 id"), {
       target: { value: "glm-5.3-pro" },
     });
-    fireEvent.submit(form);
+    fireEvent.click(within(dialog).getByLabelText("保存新模型"));
 
-    await screen.findByText("glm-5.3-pro");
+    expect(await within(dialog).findByText("glm-5.3-pro")).toBeTruthy();
 
     // Back on the composer the menu is built from the same store, so the write
     // is visible without a restart or a manual refresh.
+    fireEvent.click(within(dialog).getByLabelText("关闭"));
     fireEvent.click(nav("新对话"));
     await screen.findByText("我能为你做些什么？");
     fireEvent.click(screen.getByTestId("model-chip"));
     const menu = await screen.findByTestId("model-menu");
     expect(within(menu).getByText("glm-5.3-pro")).toBeTruthy();
+  });
+
+  it("does not carry composer text into another conversation", async () => {
+    installMockAgent({
+      sessions: [
+        { id: "session-1", title: "会话一", updatedAt: Date.now() },
+        { id: "session-2", title: "会话二", updatedAt: Date.now() - 1_000 },
+      ],
+      models: [{ provider: "hifox", id: "m", name: "m" }],
+      defaultModel: { provider: "hifox", id: "m" },
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByText("会话一"));
+    const textarea = (await screen.findByPlaceholderText("发消息…")) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "只属于会话一" } });
+
+    fireEvent.click(screen.getByText("会话二"));
+
+    const next = (await screen.findByPlaceholderText("发消息…")) as HTMLTextAreaElement;
+    expect(next.value).toBe("");
+  });
+
+  it("keeps a message sent while history is still loading", async () => {
+    let resolveHistory!: (items: TranscriptItem[]) => void;
+    const mock = installMockAgent({
+      sessions: [{ id: "session-1", title: "旧会话", updatedAt: Date.now() }],
+      models: [{ provider: "hifox", id: "m", name: "m" }],
+      defaultModel: { provider: "hifox", id: "m" },
+    });
+    mock.api.history = vi.fn(
+      () =>
+        new Promise<TranscriptItem[]>((resolve) => {
+          resolveHistory = resolve;
+        }),
+    );
+    render(<App />);
+
+    fireEvent.click(await screen.findByText("旧会话"));
+    await screen.findByText("我能为你做些什么？");
+    const textarea = await screen.findByPlaceholderText("发消息…");
+    fireEvent.change(textarea, { target: { value: "刚发的" } });
+    fireEvent.keyDown(textarea, { key: "Enter" });
+    expect(await screen.findByText("刚发的")).toBeTruthy();
+
+    act(() => resolveHistory([{ kind: "user", text: "很久以前" }]));
+
+    expect(await screen.findByText("很久以前")).toBeTruthy();
+    expect(screen.getByText("刚发的")).toBeTruthy();
   });
 });
 

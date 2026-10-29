@@ -19,6 +19,8 @@
 
 - `src/host/` 里**不许 import `electron`**。这是 `scripts/smoke*.ts` 能在纯 node 下跑真实链路的前提；需要 Electron API 的代码只能待在 `src/main/`。
 - 渲染层只能通过 preload 暴露的 `window.agent` 访问外部，不许引 node、不许 `require`。
+- IPC 的 payload / 返回类型只在 `src/shared/contract.ts` 定义；main、preload、renderer 都 `import type` 这一份，不要再各写一套。
+- `src/shared/` 只放跨进程契约（`ipc-action.ts` 的 channel 常量 + `contract.ts` 的类型），不放业务逻辑；renderer 对它只能 `import type`。
 - 中断只作用于当前会话：`abort` 走 `hosts.get(sessionId)?.abort()`，只有那个 worker 收得到，后台会话继续跑。UI 上停止入口只在会话内的 composer（运行中发送键变停止），没有全局停止。
 - 一个会话 = 一个 `AgentHost` = 一个 worker = 一个 pi 进程（`hosts: Map<sessionId, AgentHost>`，不设上限）。会话之间没有共享进程，也不做进程重绑。
 - 切换会话是**纯前端**：transcript 从磁盘读，进程在第一次发消息时才创建。不要为「切换」加 IPC 或 spawn。

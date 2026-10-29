@@ -3,6 +3,7 @@ import type { SkillSummary } from "../lib/agent";
 import { agent } from "../lib/agent";
 import ui from "../styles/ui.module.css";
 import { CloseIcon } from "./Icons";
+import Tag from "./Tag";
 
 /**
  * The whole SKILL.md, because the row only has room for two lines and the file
@@ -32,8 +33,8 @@ export default function SkillDetails({ skill, onClose }: { skill: SkillSummary; 
       <div className={ui.dialog} role="dialog" aria-modal="true" aria-label={`${skill.name} 详情`}>
         <div className={ui.dialogHead}>
           <span className={ui.cardTitle}>{skill.name}</span>
-          <span className={ui.badge}>{skill.scope === "project" ? "项目" : "用户"}</span>
-          {skill.manualOnly ? <span className={`${ui.badge} ${ui.warn}`}>仅手动调用</span> : null}
+          <Tag>{skill.scope === "project" ? "项目" : "用户"}</Tag>
+          {skill.manualOnly ? <Tag tone="warn">仅手动调用</Tag> : null}
           <span className={ui.spacer} />
           <button type="button" className={ui.iconBtn} aria-label="关闭" title="关闭" onClick={onClose}>
             <CloseIcon />

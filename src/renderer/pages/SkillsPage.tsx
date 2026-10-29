@@ -1,6 +1,8 @@
 import { useState } from "react";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { InfoIcon, RefreshIcon, TrashIcon } from "../components/Icons";
 import SkillDetails from "../components/SkillDetails";
+import Tag from "../components/Tag";
 import type { SkillSummary } from "../lib/agent";
 import { getSkill, useSkill, useSkillSync } from "../store/skill";
 import ui from "../styles/ui.module.css";
@@ -16,6 +18,7 @@ export default function SkillsPage() {
   const skills = useSkill((state) => state.list);
   const [error, setError] = useState<string | null>(null);
   const [opened, setOpened] = useState<SkillSummary | null>(null);
+  const [pending, setPending] = useState<SkillSummary | null>(null);
   useSkillSync();
 
   const failure = (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause));
@@ -45,15 +48,13 @@ export default function SkillsPage() {
         {error ? <p className={ui.error}>{error}</p> : null}
 
         <div className={ui.cardList}>
-          {skills.length === 0 ? (
-            <div className={`${ui.card} ${ui.empty}`}>还没有技能，点右上角的 + 新建一个。</div>
-          ) : null}
+          {skills.length === 0 ? <div className={`${ui.card} ${ui.empty}`}>还没有技能。</div> : null}
           {skills.map((skill) => (
             <div className={ui.card} key={skill.dir}>
               <div className={ui.cardHead}>
                 <span className={ui.cardTitle}>{skill.name}</span>
-                <span className={ui.badge}>{skill.scope === "project" ? "项目" : "用户"}</span>
-                {skill.manualOnly ? <span className={`${ui.badge} ${ui.warn}`}>仅手动调用</span> : null}
+                <Tag>{skill.scope === "project" ? "项目" : "用户"}</Tag>
+                {skill.manualOnly ? <Tag tone="warn">仅手动调用</Tag> : null}
                 <span className={ui.spacer} />
                 <button
                   type="button"
@@ -69,10 +70,7 @@ export default function SkillsPage() {
                   className={`${ui.iconBtn} ${ui.danger}`}
                   aria-label={`删除 ${skill.name}`}
                   title="删除"
-                  onClick={() => {
-                    setError(null);
-                    void getSkill().remove(skill.dir).catch(failure);
-                  }}
+                  onClick={() => setPending(skill)}
                 >
                   <TrashIcon />
                 </button>
@@ -84,6 +82,19 @@ export default function SkillsPage() {
           ))}
         </div>
       </div>
+      {pending ? (
+        <ConfirmDialog
+          title="删除这个技能？"
+          message={`「${pending.name}」的目录会被删除，不能恢复。`}
+          onCancel={() => setPending(null)}
+          onConfirm={() => {
+            const dir = pending.dir;
+            setPending(null);
+            setError(null);
+            void getSkill().remove(dir).catch(failure);
+          }}
+        />
+      ) : null}
       {opened ? <SkillDetails skill={opened} onClose={() => setOpened(null)} /> : null}
     </section>
   );

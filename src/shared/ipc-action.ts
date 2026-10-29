@@ -38,6 +38,7 @@ export const IpcAction = {
     removeProvider: "models:removeProvider",
     addModel: "models:addModel",
     removeModel: "models:removeModel",
+    test: "models:test",
   },
   skills: {
     list: "skills:list",

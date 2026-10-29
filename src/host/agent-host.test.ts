@@ -167,4 +167,15 @@ describe("AgentHost", () => {
     expect(first.host.workerPid).not.toBe(firstPid);
     expect(second.host.workerPid).toBe(secondPid);
   });
+
+  it("waits for a replacement before accepting a prompt", async () => {
+    const { host, events } = await startHost("fast");
+
+    const replacing = host.restart();
+    await host.prompt("after replacement");
+    await replacing;
+
+    await waitFor(() => events.some((event) => event.type === "settled"));
+    expect(events.filter((event) => event.type === "settled")).toHaveLength(1);
+  });
 });

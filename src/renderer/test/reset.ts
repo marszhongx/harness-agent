@@ -1,5 +1,6 @@
 import { useDialog } from "../store/dialog";
 import { useModel } from "../store/model";
+import { useProbe } from "../store/probe";
 import { useRunConfig } from "../store/run-config";
 import { useSession } from "../store/session";
 import { useSkill } from "../store/skill";
@@ -21,6 +22,7 @@ export function resetStores(): void {
     loaded: false,
   });
   useSkill.setState({ list: [], loading: false });
+  useProbe.setState({ results: new Map(), running: new Set(), current: new Set() });
   useRunConfig.setState({
     chosen: new Map(),
     thinking: new Map(),

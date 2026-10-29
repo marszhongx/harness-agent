@@ -30,10 +30,11 @@ beforeEach(() => resetStores());
 const mount = (
   options: Parameters<typeof installMockAgent>[0] = {},
   sessionId: string | null = "session-1",
+  busy = false,
 ) => {
   const mock = installMockAgent(options);
   const onSend = vi.fn(async () => undefined);
-  render(<Composer sessionId={sessionId} busy={false} onSend={onSend} />);
+  render(<Composer sessionId={sessionId} busy={busy} onSend={onSend} />);
   return { mock, onSend };
 };
 
@@ -52,6 +53,55 @@ describe("Composer", () => {
     fireEvent.click(screen.getByText("workspace"));
     await waitFor(() => expect(mock.api.chooseDraftWorkspace).toHaveBeenCalled());
     expect(mock.api.revealPath).not.toHaveBeenCalled();
+  });
+
+  it("lets a draft that is not in the index pick its folder", async () => {
+    // The first send failed before promotion: the id exists but the session is
+    // not listed yet, so the folder is still a choice.
+    const { mock } = mount({ models, sessions: [session] }, "draft-9");
+    await screen.findByText("workspace");
+
+    fireEvent.click(screen.getByText("workspace"));
+    await waitFor(() => expect(mock.api.chooseDraftWorkspace).toHaveBeenCalled());
+    expect(mock.api.revealPath).not.toHaveBeenCalled();
+  });
+
+  it("does not send an empty message on Enter", async () => {
+    const { onSend } = mount({ models, sessions: [session] });
+    const textarea = await screen.findByPlaceholderText("发消息…");
+
+    fireEvent.keyDown(textarea, { key: "Enter" });
+
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("sends once when Enter is pressed twice before the first send resolves", async () => {
+    installMockAgent({ models, sessions: [session] });
+    let release!: () => void;
+    const onSend = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    render(<Composer sessionId="session-1" busy={false} onSend={onSend} />);
+    const textarea = await screen.findByPlaceholderText("发消息…");
+
+    fireEvent.change(textarea, { target: { value: "只发一次" } });
+    fireEvent.keyDown(textarea, { key: "Enter" });
+    fireEvent.keyDown(textarea, { key: "Enter" });
+
+    expect(onSend).toHaveBeenCalledTimes(1);
+    release();
+  });
+
+  it("does not stop the turn when Enter is pressed while busy", async () => {
+    const { mock } = mount({ models, sessions: [session] }, "session-1", true);
+    const textarea = await screen.findByPlaceholderText("发消息…");
+
+    fireEvent.keyDown(textarea, { key: "Enter" });
+
+    expect(mock.api.abort).not.toHaveBeenCalled();
   });
 
   it("only reveals the folder of an existing conversation", async () => {

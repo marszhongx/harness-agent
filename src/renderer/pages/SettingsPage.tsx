@@ -68,14 +68,32 @@ export default function SettingsPage() {
           <div className={ui.settingRow}>
             <div className={ui.settingLabel}>默认工作空间</div>
             <div className={ui.settingBody}>
-              <button
-                type="button"
-                className={ui.pathButton}
-                title={`在访达中打开 ${state.workspacePath}`}
-                onClick={() => void agent().revealPath(state.workspacePath)}
-              >
-                {state.workspacePath}
-              </button>
+              <div className={ui.row}>
+                <button
+                  type="button"
+                  className={ui.pathButton}
+                  title={`在访达中打开 ${state.workspacePath}`}
+                  onClick={() => void agent().revealPath(state.workspacePath)}
+                >
+                  {state.workspacePath}
+                </button>
+                <button
+                  type="button"
+                  className={ui.btn}
+                  onClick={() => void agent().chooseWorkspace().then(setState)}
+                >
+                  更改
+                </button>
+                {state.workspaceIsCustom ? (
+                  <button
+                    type="button"
+                    className={ui.btn}
+                    onClick={() => void agent().resetWorkspace().then(setState)}
+                  >
+                    恢复默认
+                  </button>
+                ) : null}
+              </div>
             </div>
           </div>
 

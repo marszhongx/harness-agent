@@ -81,8 +81,8 @@ function post(message: WorkerToHost): void {
   }
 }
 
-function fail(message: string, fatal: boolean, requestId?: string): void {
-  post({ type: "error", message, fatal, requestId });
+function fail(message: string, fatal: boolean, requestId?: string, turnEnded = false): void {
+  post({ type: "error", message, fatal, requestId, turnEnded: turnEnded || fatal });
 }
 
 // ── event mapping ───────────────────────────────────────────────────────────
@@ -329,10 +329,11 @@ async function runPrompt(
   images?: Array<{ data: string; mimeType: string }>,
 ): Promise<void> {
   if (!transport) {
-    fail("worker is not initialised", false, requestId);
+    fail("worker is not initialised", false, requestId, true);
     return;
   }
   if (activeRequestId) {
+    // The earlier run is still alive; this rejection does not end it.
     fail("a run is already in flight", false, requestId);
     return;
   }
@@ -347,7 +348,7 @@ async function runPrompt(
   } catch (error) {
     // When pi exited, `onExit` already reported the same reason; a second
     // notice would just duplicate it in the transcript.
-    if (!piExited) fail(error instanceof Error ? error.message : String(error), false, requestId);
+    if (!piExited) fail(error instanceof Error ? error.message : String(error), false, requestId, true);
   } finally {
     activeRequestId = null;
     settledWaiter = null;

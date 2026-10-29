@@ -174,6 +174,11 @@ export class AgentHost {
   async prompt(message: string, images?: Array<{ data: string; mimeType: string }>): Promise<string> {
     const requestId = randomUUID();
     await this.#ready;
+    // A lifecycle task may be replacing the worker right now (a deferred
+    // model/skill reload, an abort fallback). Posting to the old process would
+    // lose the prompt and leave the host thinking a turn is running.
+    await this.#queue;
+    await this.#ready;
     this.#post({ type: "prompt", requestId, message, images });
     this.#inFlight = true;
     return requestId;
@@ -182,7 +187,11 @@ export class AgentHost {
   /** Thinking level for this session; also becomes the default for later spawns. */
   setThinkingLevel(level: string): void {
     this.#options.thinkingLevel = level;
-    this.#post({ type: "set_thinking_level", level });
+    try {
+      this.#post({ type: "set_thinking_level", level });
+    } catch {
+      // The worker is being replaced; the next spawn reads the option above.
+    }
   }
 
   answerDialog(requestId: string, answer: UiAnswer): void {
@@ -242,7 +251,11 @@ export class AgentHost {
   setModel(provider: string, model: string): void {
     this.#options.provider = provider;
     this.#options.model = model;
-    this.#post({ type: "set_model", provider, model });
+    try {
+      this.#post({ type: "set_model", provider, model });
+    } catch {
+      // The worker is being replaced; the next spawn reads the option above.
+    }
   }
 
   restart(): Promise<void> {
@@ -392,7 +405,13 @@ export class AgentHost {
         default:
           break;
       }
-      if (message.type === "settled") this.#endTurn();
+      if (message.type === "settled") {
+        // A completed turn means the worker is healthy; a later crash should
+        // start from a fresh restart budget instead of inheriting the
+        // session's whole history.
+        this.#restarts = 0;
+        this.#endTurn();
+      }
       this.#options.onEvent(message);
     });
 

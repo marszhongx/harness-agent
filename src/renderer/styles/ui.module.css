@@ -73,9 +73,14 @@
   background: hsl(var(--warning-color) / 0.16);
   color: hsl(var(--warning-color));
 }
+.badge.error {
+  background: hsl(var(--error-color) / 0.14);
+  color: hsl(var(--error-color-strong));
+  font-size: var(--font-size-xxs);
+}
 .badge.ok {
   background: hsl(var(--success-color) / 0.14);
-  color: hsl(var(--success-color));
+  color: hsl(var(--success-color-strong));
 }
 .row {
   display: flex;
@@ -114,37 +119,170 @@ select.fieldInput {
   resize: vertical;
   line-height: var(--line-height-base);
 }
-.model-chips {
+.provider-models {
   display: flex;
   flex-wrap: wrap;
   gap: var(--padding-xs);
+  margin-top: var(--padding-xs);
 }
-.model-chip {
+.provider-model {
   display: inline-flex;
   align-items: center;
   gap: var(--padding-xs);
-  padding: var(--padding-2xs) var(--padding-xxs) var(--padding-2xs) var(--padding-xs);
+  min-width: 0;
+  padding: var(--padding-xs) var(--padding-sm);
   border-radius: var(--border-radius-base);
-  font-size: var(--font-size-xs);
   background: hsl(var(--text-color) / 0.045);
+  font-size: var(--font-size-sm);
+}
+.provider-model .probe-tag {
+  padding: var(--padding-xxs) var(--padding-xs);
+}
+.provider-model-id {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.provider-model-ctx {
+  color: hsl(var(--text-color-secondary) / 0.8);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.model-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-sm);
+  white-space: normal;
+}
+.model-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-xs);
+  padding-top: var(--padding-sm);
+  border-top: 1px solid var(--border-color-split);
+}
+.model-section-title {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+.model-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+.model-table th {
+  padding: var(--padding-xs);
+  border-bottom: 1px solid var(--border-color-base);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  text-align: left;
+  color: hsl(var(--text-color-secondary));
+}
+.model-table td {
+  padding: var(--padding-xs);
+  border-bottom: 1px solid var(--border-color-split);
+  vertical-align: middle;
+}
+.model-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.model-table tbody tr:has(input[type="checkbox"]:checked) td {
+  background: hsl(var(--primary-color) / 0.035);
+}
+.model-check {
+  width: 28px;
+}
+.model-name-cell {
+  min-width: 0;
+}
+.model-name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-xs);
+  min-width: 0;
+}
+.model-name-row .model-id {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.model-id {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-name {
+  display: block;
+  overflow: hidden;
+  font-size: var(--font-size-xxs);
+  color: hsl(var(--text-color-secondary));
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .model-ctx {
-  color: hsl(var(--text-color-secondary) / 0.8);
+  width: 92px;
+  text-align: right;
+  color: hsl(var(--text-color-secondary));
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-.model-chip button {
-  color: hsl(var(--text-color-secondary) / 0.55);
-  font-size: var(--font-size-sm);
-  line-height: 1;
-  opacity: 0;
-  transition: opacity var(--motion-duration-fast) var(--ease-out);
+.model-table th.model-ctx {
+  text-align: right;
 }
-.model-chip:hover button,
-.model-chip button:focus-visible {
-  opacity: 1;
+.model-actions {
+  width: 64px;
+  text-align: right;
+  white-space: nowrap;
 }
-.model-chip button:hover {
-  color: hsl(var(--error-color));
+.model-table .fieldInput {
+  width: 100%;
+}
+.model-add-row td {
+  background: hsl(var(--text-color) / 0.025);
+}
+.model-add-row .model-ctx .fieldInput {
+  min-width: 0;
+  text-align: right;
+}
+.model-add-fields {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-xs);
+}
+.model-add-fields .fieldInput:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.model-add-fields .fieldInput:last-child {
+  flex: 0 0 44%;
+}
+.model-actions .iconBtn + .iconBtn {
+  margin-left: var(--padding-2xs);
+}
+/* Provider-level model test dialog: choose several models, then run them. */
+.probe-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--padding-2xs);
+}
+.probe-spinner {
+  display: inline-flex;
+}
+.probe-spinner svg {
+  animation: probe-spin 0.9s linear infinite;
+}
+@keyframes probe-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .probe-spinner svg {
+    animation: none;
+  }
 }
 .empty {
   font-size: var(--font-size-sm);
@@ -310,14 +448,6 @@ select.fieldInput {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-.inline-form {
-  display: flex;
-  gap: var(--padding-xs);
-  align-items: flex-end;
-  flex-wrap: wrap;
-  padding-top: var(--padding-xs);
-  border-top: 1px dashed hsl(var(--text-color) / 0.09);
 }
 .group-title {
   margin: var(--padding-lg) 0 var(--padding-xs);

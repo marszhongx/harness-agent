@@ -72,10 +72,16 @@ describe("transcript store", () => {
     expect(items("s1")[0]).toMatchObject({ running: false, text: "a b", durationMs: 7 });
   });
 
-  it("clears busy and records failures and notices", () => {
-    store().ingest({ type: "error", sessionId: "s1", message: "模型挂了" });
-    expect(store().getBusy("s1")).toBe(false);
+  it("records notices and only clears busy for turn-ending errors", () => {
+    store().setBusy("s1", true);
+    // A failed model/thinking switch happens while the run is still going.
+    store().ingest({ type: "error", sessionId: "s1", message: "模型切换失败" });
+    expect(store().getBusy("s1")).toBe(true);
     expect(kinds("s1")).toBe("notice");
+
+    store().ingest({ type: "error", sessionId: "s1", message: "这个回合挂了", turnEnded: true });
+    expect(store().getBusy("s1")).toBe(false);
+    expect(kinds("s1")).toBe("notice,notice");
 
     store().ingest({ type: "notify", sessionId: "s1", message: "提示" });
     expect(items("s1").at(-1)).toMatchObject({ kind: "notice", text: "提示" });
