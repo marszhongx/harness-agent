@@ -1,9 +1,9 @@
 import { useState } from "react";
 import ConfirmDialog from "../components/ConfirmDialog";
-import { InfoIcon, RefreshIcon, TrashIcon } from "../components/Icons";
+import { FolderIcon, InfoIcon, RefreshIcon, TrashIcon } from "../components/Icons";
 import SkillDetails from "../components/SkillDetails";
 import Tag from "../components/Tag";
-import type { SkillSummary } from "../lib/agent";
+import { agent, type SkillSummary } from "../lib/agent";
 import { getSkill, useSkill, useSkillSync } from "../store/skill";
 import ui from "../styles/ui.module.css";
 
@@ -14,18 +14,18 @@ import ui from "../styles/ui.module.css";
  * The list lives in the skills store: deleting a skill updates the store, and
  * the page reads it back through a subscription rather than holding its own copy.
  */
-export default function SkillsPage() {
+export default function SkillsPage({ sessionId }: { sessionId?: string | null }) {
   const skills = useSkill((state) => state.list);
   const [error, setError] = useState<string | null>(null);
   const [opened, setOpened] = useState<SkillSummary | null>(null);
   const [pending, setPending] = useState<SkillSummary | null>(null);
-  useSkillSync();
+  useSkillSync(sessionId);
 
   const failure = (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause));
 
   const load = () => {
     setError(null);
-    void getSkill().load().catch(failure);
+    void getSkill().load(sessionId).catch(failure);
   };
 
   return (
@@ -34,6 +34,15 @@ export default function SkillsPage() {
         <div className={ui.pageHead}>
           <h2>技能</h2>
           <div className={ui.row}>
+            <button
+              type="button"
+              className={ui.iconBtn}
+              aria-label="打开应用技能目录"
+              title="打开应用技能目录"
+              onClick={() => void agent().revealAppSkills().catch(failure)}
+            >
+              <FolderIcon />
+            </button>
             <button
               type="button"
               className={ui.iconBtn}
@@ -53,7 +62,7 @@ export default function SkillsPage() {
             <div className={ui.card} key={skill.dir}>
               <div className={ui.cardHead}>
                 <span className={ui.cardTitle}>{skill.name}</span>
-                <Tag>{skill.scope === "project" ? "项目" : "用户"}</Tag>
+                <Tag>{skill.scope === "app" ? "应用" : skill.scope === "project" ? "项目" : "用户"}</Tag>
                 {skill.manualOnly ? <Tag tone="warn">仅手动调用</Tag> : null}
                 <span className={ui.spacer} />
                 <button
@@ -91,11 +100,11 @@ export default function SkillsPage() {
             const dir = pending.dir;
             setPending(null);
             setError(null);
-            void getSkill().remove(dir).catch(failure);
+            void getSkill().remove(dir, sessionId).catch(failure);
           }}
         />
       ) : null}
-      {opened ? <SkillDetails skill={opened} onClose={() => setOpened(null)} /> : null}
+      {opened ? <SkillDetails skill={opened} sessionId={sessionId} onClose={() => setOpened(null)} /> : null}
     </section>
   );
 }

@@ -9,14 +9,22 @@ import Tag from "./Tag";
  * The whole SKILL.md, because the row only has room for two lines and the file
  * is what a skill actually is. Nothing here edits it — the folder is a file away.
  */
-export default function SkillDetails({ skill, onClose }: { skill: SkillSummary; onClose: () => void }) {
+export default function SkillDetails({
+  skill,
+  sessionId,
+  onClose,
+}: {
+  skill: SkillSummary;
+  sessionId?: string | null;
+  onClose: () => void;
+}) {
   const [text, setText] = useState<string | null>(null);
 
   useEffect(() => {
     void agent()
-      .readSkill(skill.dir)
+      .readSkill(skill.dir, sessionId)
       .then((content) => setText(content ?? "（读不到这个文件）"));
-  }, [skill.dir]);
+  }, [skill.dir, sessionId]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -33,7 +41,7 @@ export default function SkillDetails({ skill, onClose }: { skill: SkillSummary; 
       <div className={ui.dialog} role="dialog" aria-modal="true" aria-label={`${skill.name} 详情`}>
         <div className={ui.dialogHead}>
           <span className={ui.cardTitle}>{skill.name}</span>
-          <Tag>{skill.scope === "project" ? "项目" : "用户"}</Tag>
+          <Tag>{skill.scope === "app" ? "应用" : skill.scope === "project" ? "项目" : "用户"}</Tag>
           {skill.manualOnly ? <Tag tone="warn">仅手动调用</Tag> : null}
           <span className={ui.spacer} />
           <button type="button" className={ui.iconBtn} aria-label="关闭" title="关闭" onClick={onClose}>

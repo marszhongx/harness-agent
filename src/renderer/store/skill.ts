@@ -17,38 +17,38 @@ const NO_SKILLS: SkillSummary[] = [];
 export type SkillState = {
   list: SkillSummary[];
   loading: boolean;
-  load: () => Promise<void>;
-  remove: (dir: string) => Promise<void>;
+  load: (sessionId?: string | null) => Promise<void>;
+  remove: (dir: string, sessionId?: string | null) => Promise<void>;
 };
 
 export const useSkill = create<SkillState>((set, get) => ({
   list: NO_SKILLS,
   loading: false,
 
-  load: async () => {
+  load: async (sessionId) => {
     set({ loading: true });
     try {
-      set({ list: await agent().skillsList() });
+      set({ list: await agent().skillsList(sessionId) });
     } finally {
       set({ loading: false });
     }
   },
 
-  remove: async (dir) => {
-    await agent().removeSkill(dir);
-    // The list is what pi would discover now, not the old list minus one row:
-    // removing a project skill can reveal a user skill with the same name.
-    await get().load();
+  remove: async (dir, sessionId) => {
+    await agent().removeSkill(dir, sessionId);
+    // Re-read the directory rather than removing the row by hand: the next
+    // scan is also what pi will see when the worker restarts.
+    await get().load(sessionId);
   },
 }));
 
 /** Imperative access from event handlers. */
 export const getSkill = useSkill.getState;
 
-export function useSkillSync(): void {
+export function useSkillSync(sessionId?: string | null): void {
   useEffect(() => {
     void getSkill()
-      .load()
+      .load(sessionId)
       .catch(() => undefined);
-  }, []);
+  }, [sessionId]);
 }

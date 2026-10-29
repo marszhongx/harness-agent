@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -12,7 +12,15 @@ import {
   removeProvider,
   upsertProvider,
 } from "./models-config.ts";
-import { agentDir, readDefaultModel, settingsPath, writeDefaultModel } from "./pi-settings.ts";
+import {
+  agentDir,
+  moveLegacyAgentDir,
+  readDefaultModel,
+  restoreDefaultSkills,
+  seedAgentDir,
+  settingsPath,
+  writeDefaultModel,
+} from "./pi-settings.ts";
 
 /** These modules read pi's config through an overridable agent directory. */
 let dir: string;
@@ -31,6 +39,93 @@ describe("agentDir", () => {
 
   it("expands a leading tilde", () => {
     expect(agentDir({ PI_CODING_AGENT_DIR: "~/somewhere" })).toBe(join(homedir(), "somewhere"));
+  });
+});
+
+describe("app-owned pi agent directory", () => {
+  it("copies the legacy files once", () => {
+    const legacy = join(dir, "legacy");
+    const local = join(dir, "local");
+    mkdirSync(legacy, { recursive: true });
+    writeFileSync(join(legacy, "models.json"), '{"providers":{}}');
+    writeFileSync(join(legacy, "auth.json"), '{"hifox":{"type":"api_key","key":"x"}}');
+    writeFileSync(join(legacy, "settings.json"), '{"defaultModel":"m"}');
+    writeFileSync(join(legacy, "trust.json"), '{"project":true}');
+    mkdirSync(join(legacy, "skills", "pdf-tools"), { recursive: true });
+    writeFileSync(join(legacy, "skills", "pdf-tools", "SKILL.md"), "---\nname: pdf\ndescription: x\n---\n");
+
+    seedAgentDir(local, legacy);
+
+    expect(readFileSync(join(local, "models.json"), "utf8")).toBe('{"providers":{}}');
+    expect(readFileSync(join(local, "auth.json"), "utf8")).toContain("hifox");
+    expect(readFileSync(join(local, "settings.json"), "utf8")).toContain("defaultModel");
+    expect(readFileSync(join(local, "trust.json"), "utf8")).toContain("project");
+    expect(readFileSync(join(local, "skills", "pdf-tools", "SKILL.md"), "utf8")).toContain("name: pdf");
+    expect(existsSync(join(local, ".seeded"))).toBe(true);
+  });
+
+  it("does not overwrite an existing local file or re-import after the marker", () => {
+    const legacy = join(dir, "legacy");
+    const local = join(dir, "local");
+    mkdirSync(legacy, { recursive: true });
+    writeFileSync(join(legacy, "models.json"), "legacy");
+    mkdirSync(local, { recursive: true });
+    writeFileSync(join(local, "models.json"), "local");
+
+    seedAgentDir(local, legacy);
+    expect(readFileSync(join(local, "models.json"), "utf8")).toBe("local");
+
+    writeFileSync(join(legacy, "models.json"), "legacy changed");
+    seedAgentDir(local, legacy);
+    expect(readFileSync(join(local, "models.json"), "utf8")).toBe("local");
+  });
+});
+
+describe("app agent directory migration", () => {
+  it("moves the old pi directory to .pi once", () => {
+    const previous = join(dir, "pi");
+    const target = join(dir, ".pi");
+    mkdirSync(previous, { recursive: true });
+    writeFileSync(join(previous, "models.json"), "old");
+
+    moveLegacyAgentDir(target, previous);
+
+    expect(existsSync(previous)).toBe(false);
+    expect(readFileSync(join(target, "models.json"), "utf8")).toBe("old");
+  });
+
+  it("does not overwrite an existing target", () => {
+    const previous = join(dir, "pi");
+    const target = join(dir, ".pi");
+    mkdirSync(previous, { recursive: true });
+    mkdirSync(target, { recursive: true });
+    writeFileSync(join(previous, "models.json"), "old");
+    writeFileSync(join(target, "models.json"), "new");
+
+    moveLegacyAgentDir(target, previous);
+
+    expect(readFileSync(join(target, "models.json"), "utf8")).toBe("new");
+    expect(existsSync(previous)).toBe(true);
+  });
+});
+
+describe("app default skill policy", () => {
+  it("removes only the app-generated skill exclusion", () => {
+    const generated = `!${join(homedir(), ".agents", "skills")}/**`;
+    writeFileSync(settingsPath(env), JSON.stringify({ theme: "dark", skills: [generated] }));
+
+    restoreDefaultSkills(env);
+
+    expect(JSON.parse(readFileSync(settingsPath(env), "utf8"))).toEqual({ theme: "dark" });
+    expect(existsSync(`${settingsPath(env)}.bak`)).toBe(true);
+  });
+
+  it("leaves a user-owned skill exclusion alone", () => {
+    writeFileSync(settingsPath(env), JSON.stringify({ skills: ["!my-own-skill"] }));
+
+    restoreDefaultSkills(env);
+
+    expect(JSON.parse(readFileSync(settingsPath(env), "utf8"))).toEqual({ skills: ["!my-own-skill"] });
   });
 });
 

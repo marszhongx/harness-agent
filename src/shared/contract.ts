@@ -88,11 +88,12 @@ export interface AgentApi {
   ) => Promise<void>;
   removeModel: (providerId: string, modelId: string) => Promise<void>;
   testModel: (provider: string, model: string) => Promise<ModelProbe>;
-  skillsList: () => Promise<SkillSummary[]>;
-  removeSkill: (dir: string) => Promise<void>;
+  skillsList: (sessionId?: string | null) => Promise<SkillSummary[]>;
+  removeSkill: (dir: string, sessionId?: string | null) => Promise<void>;
   revealSkill: (dir: string) => Promise<void>;
+  revealAppSkills: () => Promise<void>;
   /** The whole SKILL.md, for the details dialog. */
-  readSkill: (dir: string) => Promise<string | null>;
+  readSkill: (dir: string, sessionId?: string | null) => Promise<string | null>;
   settings: () => Promise<SettingsSnapshot>;
   setTheme: (theme: "system" | "light" | "dark") => Promise<void>;
   setLaunchAtLogin: (enabled: boolean) => Promise<void>;

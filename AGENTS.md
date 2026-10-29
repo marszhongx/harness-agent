@@ -43,8 +43,9 @@
 - 我们写：`<userData>/sessions.json`、`settings.json`。
 - 我们写：`<userData>/logs/`（只记后台：主进程和 worker，`tag` 列区分）。活跃文件是 `application.log`，跨天时改名成 `application-YYYY-MM-DD.log`，只留 7 天；`HARNESS_DEBUG=1` 才记 debug。
 - **渲染层不进日志文件**：它的报错看前台控制台（devtools）就行。别为了「方便」把渲染层的 console 转发进来——日志文件是查后台问题的，混进前台的噪声只会让定位更慢。
-- pi 写：`<userData>/sessions/*.jsonl`（transcript）、`~/.pi/agent/{models.json,settings.json,auth.json}`。
-- transcript 我们**只读**（`src/host/transcript-file.ts`），唯一例外是用户删会话时：`agent:deleteSession` 会先杀进程、从索引摘掉，再删除对应的 `.jsonl`（用户明确要求过）。；`models.json` / pi 的 `settings.json` 允许写，但必须保留不认识的键、写前备份 `.bak`。
+- pi 写：`<userData>/sessions/*.jsonl`（transcript）、`<userData>/.pi/{models.json,settings.json,auth.json,trust.json,skills/}`。旧的 `~/.pi/agent` 只在首次迁移时读取。
+- skills：app 库在 `<userData>/.pi/skills`（Skills 页管理），项目继续按 pi 默认发现 `.pi/skills` / `.agents/skills`（受项目 trust 约束）；全局 `~/.agents/skills` 也按 pi 默认加载；全局 `~/.pi/agent/skills` 因 agentDir 指向 app `.pi` 而不读取。
+- transcript 我们**只读**（`src/host/transcript-file.ts`），唯一例外是用户删会话时：`agent:deleteSession` 会先杀进程，从索引摘掉，再删除对应的 `.jsonl`（用户明确要求过）。；`models.json` / pi 的 `settings.json` 允许写，但必须保留不认识的键、写前备份 `.bak`。
 - 所有落盘写操作走 `tmp + rename`。
 
 **会话状态的语义**

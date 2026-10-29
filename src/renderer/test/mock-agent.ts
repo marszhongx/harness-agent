@@ -116,6 +116,7 @@ export function installMockAgent(options: MockOptions = {}): MockAgent {
     skillsList: vi.fn(async () => options.skills ?? []),
     removeSkill: vi.fn(async () => undefined),
     revealSkill: vi.fn(async () => undefined),
+    revealAppSkills: vi.fn(async () => undefined),
     readSkill: vi.fn(async () => options.skillText ?? "---\nname: pdf-tools\n---\n\n# body\n"),
     settings: vi.fn(async () => settings(options.settings)),
     setTheme: vi.fn(async () => undefined),

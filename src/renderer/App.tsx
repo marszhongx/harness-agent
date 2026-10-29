@@ -64,7 +64,7 @@ export default function App() {
       <main className={layout.main}>
         {view === "chat" && <ChatPage sessionId={sessionId} onEnsureSession={ensureSession} />}
         {view === "model" && <ModelPage />}
-        {view === "skills" && <SkillsPage />}
+        {view === "skills" && <SkillsPage sessionId={sessionId} />}
         {view === "settings" && <SettingsPage />}
       </main>
     </>

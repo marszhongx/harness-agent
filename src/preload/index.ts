@@ -64,10 +64,14 @@ const api: AgentApi = {
     ipcRenderer.invoke(IpcAction.models.test, provider, model) as Promise<ModelProbe>,
 
   // ── skills ────────────────────────────────────────────────────────────────
-  skillsList: () => ipcRenderer.invoke(IpcAction.skills.list) as Promise<SkillSummary[]>,
-  removeSkill: (dir: string) => ipcRenderer.invoke(IpcAction.skills.remove, dir) as Promise<void>,
+  skillsList: (sessionId?: string | null) =>
+    ipcRenderer.invoke(IpcAction.skills.list, sessionId ?? undefined) as Promise<SkillSummary[]>,
+  removeSkill: (dir: string, sessionId?: string | null) =>
+    ipcRenderer.invoke(IpcAction.skills.remove, dir, sessionId ?? undefined) as Promise<void>,
   revealSkill: (dir: string) => ipcRenderer.invoke(IpcAction.skills.reveal, dir) as Promise<void>,
-  readSkill: (dir: string) => ipcRenderer.invoke(IpcAction.skills.read, dir) as Promise<string | null>,
+  revealAppSkills: () => ipcRenderer.invoke(IpcAction.skills.revealApp) as Promise<void>,
+  readSkill: (dir: string, sessionId?: string | null) =>
+    ipcRenderer.invoke(IpcAction.skills.read, dir, sessionId ?? undefined) as Promise<string | null>,
 
   // ── settings ──────────────────────────────────────────────────────────────
   settings: () => ipcRenderer.invoke(IpcAction.settings.get) as Promise<SettingsSnapshot>,

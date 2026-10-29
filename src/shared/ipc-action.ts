@@ -43,6 +43,7 @@ export const IpcAction = {
     list: "skills:list",
     remove: "skills:remove",
     reveal: "skills:reveal",
+    revealApp: "skills:revealApp",
     read: "skills:read",
   },
   settings: {

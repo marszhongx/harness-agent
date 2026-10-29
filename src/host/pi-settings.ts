@@ -14,7 +14,15 @@
  * Only the two keys we own are touched; every other setting in the file is
  * preserved, and the previous content is kept beside it as `settings.json.bak`.
  */
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -31,6 +39,81 @@ export function agentDir(env: NodeJS.ProcessEnv = process.env): string {
 
 export function settingsPath(env: NodeJS.ProcessEnv = process.env): string {
   return join(agentDir(env), "settings.json");
+}
+
+const MIGRATION_MARKER = ".seeded";
+
+/** Move the previous app agent directory to its new hidden location once. */
+export function moveLegacyAgentDir(target: string, previous: string): void {
+  if (existsSync(target) || !existsSync(previous)) return;
+  try {
+    renameSync(previous, target);
+  } catch {
+    // The app can start with a fresh local agent directory.
+  }
+}
+
+/**
+ * Remove the skill exclusion written by earlier app builds.
+ *
+ * Only values this app generated are removed; a user's own skill overrides
+ * survive. No `skills` key means pi's normal user/global discovery applies.
+ */
+export function restoreDefaultSkills(env: NodeJS.ProcessEnv = process.env): void {
+  const path = settingsPath(env);
+  if (!existsSync(path)) return;
+  let settings: Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
+    if (!parsed || typeof parsed !== "object") return;
+    settings = parsed as Record<string, unknown>;
+  } catch {
+    return;
+  }
+  const skills = settings.skills;
+  if (!Array.isArray(skills) || skills.length === 0) return;
+  const home = env.HOME?.trim() || homedir();
+  const generated = new Set([
+    `!${join(home, ".agents", "skills").replaceAll("\\", "/")}/**`,
+    "!skills/**",
+    "!**",
+  ]);
+  if (!skills.every((entry) => typeof entry === "string" && generated.has(entry))) return;
+  delete settings.skills;
+  try {
+    copyFileSync(path, `${path}.bak`);
+    const temporary = `${path}.tmp`;
+    writeFileSync(temporary, `${JSON.stringify(settings, null, 2)}\n`);
+    renameSync(temporary, path);
+  } catch {
+    // A failed cleanup leaves the previous settings; the app still starts.
+  }
+}
+
+/**
+ * Create the app-owned pi agent directory and copy the legacy global files
+ * once. A marker makes this a migration, not a shadow that re-imports files a
+ * user deliberately deleted later.
+ */
+export function seedAgentDir(localAgentDir: string, legacyAgentDir: string | null): void {
+  if (!legacyAgentDir || localAgentDir === legacyAgentDir) return;
+  try {
+    if (existsSync(join(localAgentDir, MIGRATION_MARKER))) return;
+    mkdirSync(localAgentDir, { recursive: true });
+    for (const name of ["models.json", "auth.json", "settings.json", "trust.json"]) {
+      const source = join(legacyAgentDir, name);
+      const target = join(localAgentDir, name);
+      if (!existsSync(target) && existsSync(source)) copyFileSync(source, target);
+    }
+    const sourceSkills = join(legacyAgentDir, "skills");
+    const targetSkills = join(localAgentDir, "skills");
+    if (!existsSync(targetSkills) && existsSync(sourceSkills)) {
+      cpSync(sourceSkills, targetSkills, { recursive: true });
+    }
+    writeFileSync(join(localAgentDir, MIGRATION_MARKER), new Date().toISOString());
+  } catch {
+    // The app can still start with an empty local agent directory.
+  }
 }
 
 export function readDefaultModel(env: NodeJS.ProcessEnv = process.env): DefaultModel | null {

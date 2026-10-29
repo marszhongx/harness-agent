@@ -16,6 +16,7 @@
 
 import { randomUUID } from "node:crypto";
 import {
+  copyFileSync,
   existsSync,
   type FSWatcher,
   mkdirSync,
@@ -57,9 +58,13 @@ import {
   upsertProvider,
 } from "../host/models-config.ts";
 import {
+  agentDir,
   type DefaultModel,
+  moveLegacyAgentDir,
   readDefaultModel,
   readDefaultThinkingLevel,
+  restoreDefaultSkills,
+  seedAgentDir,
   writeDefaultModel,
 } from "../host/pi-settings.ts";
 import type { DialogRequest, UiAnswer, WorkerToHost } from "../host/protocol.ts";
@@ -301,6 +306,18 @@ const logFile = initLogger(logsDir(), {
 setInterval(() => rollDaily(logsDir(), new Date()), 10 * 60 * 1000).unref();
 process.on("uncaughtException", (error) => logger.error("uncaughtException", error));
 process.on("unhandledRejection", (reason) => logger.error("unhandledRejection", reason));
+
+/**
+ * pi gets its own home under the app data directory. The old global directory
+ * is copied once, so existing models/keys/skills survive the move; after that
+ * the app and the pi CLI are independent.
+ */
+const legacyAgentDir = agentDir(process.env);
+const piAgentDir = join(appBase(), ".pi");
+moveLegacyAgentDir(piAgentDir, join(appBase(), "pi"));
+process.env.PI_CODING_AGENT_DIR = piAgentDir;
+seedAgentDir(piAgentDir, legacyAgentDir);
+restoreDefaultSkills(process.env);
 
 const appSettings = new AppSettingsStore(join(appBase(), "settings.json"));
 /** One index for every workspace; each entry records the directory it lives in. */
@@ -708,13 +725,27 @@ function registerIpc(): void {
   });
 
   // ── skills ────────────────────────────────────────────────────────────────
-  ipcMain.handle(IpcAction.skills.list, () => listSkills(defaultWorkspace()));
-  ipcMain.handle(IpcAction.skills.remove, async (_event, dir: string) => {
-    removeSkill(dir, defaultWorkspace());
+  // The page passes the conversation it is looking at. Project discovery stays
+  // pi's default; user-level roots are disabled by the app's skill settings.
+  const skillsWorkspace = (sessionId?: string): string =>
+    sessionId ? sessionWorkspacePath(sessionId) : defaultWorkspace();
+  const appSkills = join(piAgentDir, "skills");
+  const skillOptions = { appSkillsDir: appSkills };
+  ipcMain.handle(IpcAction.skills.list, (_event, sessionId?: string) => {
+    const workspace = skillsWorkspace(sessionId);
+    return listSkills(workspace, process.env, skillOptions);
+  });
+  ipcMain.handle(IpcAction.skills.remove, async (_event, dir: string, sessionId?: string) => {
+    const workspace = skillsWorkspace(sessionId);
+    removeSkill(dir, workspace, process.env, skillOptions);
     await reloadWorker();
   });
   ipcMain.handle(IpcAction.skills.reveal, (_event, dir: string) => shell.showItemInFolder(dir));
-  ipcMain.handle(IpcAction.skills.read, (_event, dir: string) => readSkillFile(dir, defaultWorkspace()));
+  ipcMain.handle(IpcAction.skills.revealApp, () => shell.openPath(appSkills));
+  ipcMain.handle(IpcAction.skills.read, (_event, dir: string, sessionId?: string) => {
+    const workspace = skillsWorkspace(sessionId);
+    return readSkillFile(dir, workspace, process.env, skillOptions);
+  });
 
   // ── settings ──────────────────────────────────────────────────────────────
   const settingsSnapshot = (): SettingsSnapshot => ({
@@ -884,6 +915,7 @@ async function ensureSession(sessionId: string): Promise<AgentHost | null> {
 }
 
 async function startHost(sessionId: string): Promise<AgentHost> {
+  const cwd = requireSessionWorkspace(sessionId);
   const spawnModel = chosenModel(sessionId);
   logger.info("spawning worker", {
     sessionId,
@@ -895,7 +927,7 @@ async function startHost(sessionId: string): Promise<AgentHost> {
   const started = await AgentHost.start({
     workerEntry,
     piCliPath,
-    cwd: requireSessionWorkspace(sessionId),
+    cwd,
     sessionDir: sessionsDir(),
     sessionId,
     sessionIdPrefix: app.getName(),
@@ -968,8 +1000,16 @@ async function probeModel(provider: string, model: string): Promise<ModelProbe> 
   try {
     const cwd = join(root, "workspace");
     const sessionDir = join(root, "sessions");
+    const probeAgent = join(root, "agent");
     mkdirSync(cwd, { recursive: true });
     mkdirSync(sessionDir, { recursive: true });
+    mkdirSync(probeAgent, { recursive: true });
+    for (const name of ["models.json", "auth.json"]) {
+      const source = join(piAgentDir, name);
+      if (existsSync(source)) copyFileSync(source, join(probeAgent, name));
+    }
+    // A probe is model-only: its temporary pi home excludes all skills.
+    writeFileSync(join(probeAgent, "settings.json"), '{"skills":["!**"]}\n');
 
     let reply = "";
     let settled = false;
@@ -994,6 +1034,7 @@ async function probeModel(provider: string, model: string): Promise<ModelProbe> 
         sessionIdPrefix: app.getName(),
         provider,
         model,
+        env: { PI_CODING_AGENT_DIR: probeAgent },
         // A probe should fail fast, not retry a broken connection.
         maxRestarts: 0,
         readyTimeoutMs: 30_000,

@@ -354,6 +354,32 @@ describe("ModelPage", () => {
 });
 
 describe("SkillsPage", () => {
+  it("reads the current session's skill list", async () => {
+    const mock = installMockAgent({ skills: [] });
+    mock.api.skillsList = vi.fn(async () => []);
+    render(<SkillsPage sessionId="session-1" />);
+
+    await waitFor(() => expect(mock.api.skillsList).toHaveBeenCalledWith("session-1"));
+  });
+
+  it("labels app-owned skills as app scope", async () => {
+    installMockAgent({
+      skills: [
+        {
+          name: "app-tools",
+          description: "App library.",
+          dir: "/data/pi/skills/app-tools",
+          scope: "app",
+          manualOnly: false,
+        },
+      ],
+    });
+    render(<SkillsPage />);
+
+    expect(await screen.findByText("app-tools")).toBeTruthy();
+    expect(screen.getByText("应用")).toBeTruthy();
+  });
+
   it("lists skills with scope and opens the folder", async () => {
     const mock = installMockAgent({
       skills: [
@@ -372,12 +398,15 @@ describe("SkillsPage", () => {
     expect(screen.getByText("项目")).toBeTruthy();
     expect(screen.getByText("仅手动调用")).toBeTruthy();
 
+    fireEvent.click(screen.getByLabelText("打开应用技能目录"));
+    await waitFor(() => expect(mock.api.revealAppSkills).toHaveBeenCalled());
+
     fireEvent.click(screen.getByLabelText("查看 pdf-tools 详情"));
     const dialog = await screen.findByRole("dialog");
     // The dialog shows the file itself, not a summary of it.
     expect(within(dialog).getByText(/# body/)).toBeTruthy();
     expect(within(dialog).queryByText("/ws/.pi/skills/pdf-tools")).toBeNull();
-    expect(mock.api.readSkill).toHaveBeenCalledWith("/ws/.pi/skills/pdf-tools");
+    expect(mock.api.readSkill).toHaveBeenCalledWith("/ws/.pi/skills/pdf-tools", undefined);
 
     fireEvent.click(within(dialog).getByLabelText("关闭"));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -406,7 +435,9 @@ describe("SkillsPage", () => {
     expect(within(dialog).getByText(/的目录会被删除/)).toBeTruthy();
     fireEvent.click(within(dialog).getByText("删除"));
 
-    await waitFor(() => expect(mock.api.removeSkill).toHaveBeenCalledWith("/ws/.pi/skills/pdf-tools"));
+    await waitFor(() =>
+      expect(mock.api.removeSkill).toHaveBeenCalledWith("/ws/.pi/skills/pdf-tools", undefined),
+    );
     await waitFor(() => expect(screen.queryByText("pdf-tools")).toBeNull());
   });
 });

@@ -82,6 +82,44 @@ describe("listSkills", () => {
     expect(listSkills(workspace, env).map((entry) => entry.name)).toEqual(["inner"]);
   });
 
+  it("scans only the supplied root", () => {
+    const onlyRoot = join(workspace, ".agents", "skills");
+    skill(join(onlyRoot, "local"), "---\nname: local\ndescription: local one\n---\n");
+    skill(join(workspace, ".pi", "skills", "project"), "---\nname: project\ndescription: project one\n---\n");
+    skill(
+      join(env.PI_CODING_AGENT_DIR as string, "skills", "global"),
+      "---\nname: global\ndescription: global one\n---\n",
+    );
+
+    expect(listSkills(workspace, env, { onlyRoot })).toEqual([
+      {
+        name: "local",
+        description: "local one",
+        dir: join(onlyRoot, "local"),
+        scope: "project",
+        manualOnly: false,
+      },
+    ]);
+  });
+
+  it("can exclude user roots while keeping project roots", () => {
+    skill(join(workspace, ".pi", "skills", "project"), "---\nname: project\ndescription: project one\n---\n");
+    skill(
+      join(workspace, ".agents", "skills", "agents"),
+      "---\nname: agents\ndescription: agents one\n---\n",
+    );
+    skill(
+      join(env.PI_CODING_AGENT_DIR as string, "skills", "user"),
+      "---\nname: user\ndescription: user one\n---\n",
+    );
+    skill(join(root, ".agents", "skills", "global"), "---\nname: global\ndescription: global one\n---\n");
+
+    expect(listSkills(workspace, env, { includeUser: false }).map((entry) => entry.name)).toEqual([
+      "agents",
+      "project",
+    ]);
+  });
+
   it("keeps the first of two skills with the same name, like pi does", () => {
     skill(join(workspace, ".pi", "skills", "dup"), "---\nname: dup\ndescription: project one\n---\n");
     skill(
@@ -105,6 +143,20 @@ describe("readSkillFile", () => {
     const outside = join(root, "elsewhere");
     skill(outside, "---\nname: x\ndescription: y\n---\n");
     expect(readSkillFile(outside, workspace, env)).toBeNull();
+  });
+
+  it("reads and removes only the supplied root", () => {
+    const onlyRoot = join(workspace, ".agents", "skills");
+    const localSkill = join(onlyRoot, "local");
+    const projectSkill = join(workspace, ".pi", "skills", "project");
+    skill(localSkill, "---\nname: local\ndescription: local one\n---\n");
+    skill(projectSkill, "---\nname: project\ndescription: project one\n---\n");
+
+    expect(readSkillFile(localSkill, workspace, env, { onlyRoot })).toContain("local one");
+    expect(readSkillFile(projectSkill, workspace, env, { onlyRoot })).toBeNull();
+    expect(() => removeSkill(projectSkill, workspace, env, { onlyRoot })).toThrow(/拒绝删除/);
+
+    expect(removeSkill(localSkill, workspace, env, { onlyRoot })).toEqual([]);
   });
 });
 

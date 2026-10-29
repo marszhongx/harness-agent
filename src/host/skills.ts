@@ -6,15 +6,12 @@
  * them and open their folder. The only write here is an explicitly confirmed
  * delete, guarded to the roots listed below.
  *
- * Discovery mirrors pi's documented locations, in pi's precedence order:
- *   <workspace>/.pi/skills, <workspace>/.agents/skills,
- *   ~/.pi/agent/skills, ~/.agents/skills
- * Names are unique in what pi loads (first one discovered wins), so the same
- * rule is applied here.
+ * The app shows its own pi user skills (<userData>/pi/skills) plus pi's normal
+ * project discovery; global user roots are disabled in pi's settings.
  */
 import { existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, join, resolve, sep } from "node:path";
 import { agentDir } from "./pi-settings.ts";
 
 export interface SkillSummary {
@@ -22,7 +19,7 @@ export interface SkillSummary {
   description: string;
   /** Absolute directory holding SKILL.md. */
   dir: string;
-  scope: "project" | "user";
+  scope: "project" | "user" | "app";
   /** Set when the skill opts out of automatic model selection. */
   manualOnly: boolean;
 }
@@ -34,13 +31,35 @@ function homeDir(env: NodeJS.ProcessEnv): string {
   return env.HOME?.trim() || homedir();
 }
 
-export function listSkills(workspace: string, env: NodeJS.ProcessEnv = process.env): SkillSummary[] {
-  const roots: Array<{ dir: string; scope: SkillSummary["scope"] }> = [
-    { dir: join(workspace, ".pi", "skills"), scope: "project" },
-    { dir: join(workspace, ".agents", "skills"), scope: "project" },
-    { dir: join(agentDir(env), "skills"), scope: "user" },
-    { dir: join(homeDir(env), ".agents", "skills"), scope: "user" },
-  ];
+export interface SkillRootOptions {
+  /** App-owned skill library, loaded explicitly by the pi session. */
+  appSkillsDir?: string;
+  /** Restrict the scan to one root (used by tests and special callers). */
+  onlyRoot?: string;
+  /** Include user-level roots; the app sets this to false. */
+  includeUser?: boolean;
+}
+
+export function listSkills(
+  workspace: string,
+  env: NodeJS.ProcessEnv = process.env,
+  options: SkillRootOptions = {},
+): SkillSummary[] {
+  const roots: Array<{ dir: string; scope: SkillSummary["scope"] }> = options.onlyRoot
+    ? [{ dir: options.onlyRoot, scope: "project" }]
+    : [
+        ...(options.appSkillsDir ? [{ dir: options.appSkillsDir, scope: "app" as const }] : []),
+        { dir: join(workspace, ".pi", "skills"), scope: "project" },
+        { dir: join(workspace, ".agents", "skills"), scope: "project" },
+        ...(options.includeUser === false
+          ? []
+          : [
+              ...(options.appSkillsDir
+                ? []
+                : [{ dir: join(agentDir(env), "skills"), scope: "user" as const }]),
+              { dir: join(homeDir(env), ".agents", "skills"), scope: "user" as const },
+            ]),
+      ];
 
   const found: SkillSummary[] = [];
   const seen = new Set<string>();
@@ -161,8 +180,9 @@ export function readSkillFile(
   dir: string,
   workspace: string,
   env: NodeJS.ProcessEnv = process.env,
+  options: SkillRootOptions = {},
 ): string | null {
-  if (!listSkills(workspace, env).some((skill) => skill.dir === dir)) return null;
+  if (!listSkills(workspace, env, options).some((skill) => skill.dir === dir)) return null;
   try {
     return readFileSync(join(dir, SKILL_FILE), "utf8");
   } catch {
@@ -180,18 +200,26 @@ export function removeSkill(
   dir: string,
   workspace: string,
   env: NodeJS.ProcessEnv = process.env,
+  options: SkillRootOptions = {},
 ): SkillSummary[] {
   const target = resolve(dir);
-  const roots = [
-    resolve(join(workspace, ".pi", "skills")),
-    resolve(join(workspace, ".agents", "skills")),
-    resolve(join(agentDir(env), "skills")),
-    resolve(join(homeDir(env), ".agents", "skills")),
-  ];
-  const inside = roots.some((root) => target.startsWith(`${root}/`) && target !== root);
+  const roots = options.onlyRoot
+    ? [resolve(options.onlyRoot)]
+    : [
+        ...(options.appSkillsDir ? [resolve(options.appSkillsDir)] : []),
+        resolve(join(workspace, ".pi", "skills")),
+        resolve(join(workspace, ".agents", "skills")),
+        ...(options.includeUser === false
+          ? []
+          : [
+              ...(options.appSkillsDir ? [] : [resolve(join(agentDir(env), "skills"))]),
+              resolve(join(homeDir(env), ".agents", "skills")),
+            ]),
+      ];
+  const inside = roots.some((root) => target.startsWith(`${root}${sep}`) && target !== root);
   if (!inside || !existsSync(join(target, SKILL_FILE))) {
     throw new Error("不在可管理的技能目录内，拒绝删除");
   }
   rmSync(target, { recursive: true, force: true });
-  return listSkills(workspace, env);
+  return listSkills(workspace, env, options);
 }
