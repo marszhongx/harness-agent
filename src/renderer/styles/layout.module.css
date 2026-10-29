@@ -116,6 +116,15 @@
 .flyout-anchor {
   position: relative;
 }
+.rail-badge {
+  position: absolute;
+  top: var(--padding-xxs);
+  right: var(--padding-xxs);
+  width: var(--dot-size);
+  height: var(--dot-size);
+  border-radius: var(--border-radius-pill);
+  background: hsl(var(--warning-color));
+}
 .flyout {
   position: absolute;
   top: 0;
@@ -221,6 +230,13 @@
   gap: var(--padding-xxs);
   font-size: var(--font-size-xs);
   color: hsl(var(--primary-color-strong));
+}
+.session-waiting {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-xxs);
+  font-size: var(--font-size-xs);
+  color: hsl(var(--warning-color));
 }
 .session-dot {
   width: var(--dot-size-sm);

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import ApprovalCard from "./components/ApprovalCard";
 import Sidebar from "./components/Sidebar";
 import Tag from "./components/Tag";
+import { useDialog } from "./store/dialog";
 import { installMockAgent } from "./test/mock-agent";
 import { resetStores } from "./test/reset";
 
@@ -207,6 +208,35 @@ describe("Sidebar", () => {
     expect(onSessionDeleted).not.toHaveBeenCalled();
   });
 
+  it("marks a background session that is waiting for approval", async () => {
+    const handlers = mount();
+    await screen.findByText("第二个会话");
+
+    useDialog.setState({
+      queue: new Map([
+        [
+          "session-2",
+          [
+            {
+              sessionId: "session-2",
+              requestId: "request-1",
+              request: { method: "confirm", title: "Deploy?", message: "Ship it?" },
+            },
+          ],
+        ],
+      ]),
+    });
+
+    await waitFor(() => expect(screen.getByText("待确认")).toBeTruthy());
+    const row = screen.getByText("第二个会话").closest("button");
+    expect(row).toBeTruthy();
+    expect(within(row as HTMLElement).getByText("待确认")).toBeTruthy();
+    expect(handlers.onOpenSession).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTitle("收起侧边栏"));
+    expect(screen.getByLabelText("最近会话，1 个待确认")).toBeTruthy();
+  });
+
   it("starts a new conversation from the nav item", () => {
     const handlers = mount({ sessionId: "session-1" });
     fireEvent.click(screen.getByText("新对话"));
@@ -216,7 +246,7 @@ describe("Sidebar", () => {
   it("navigates to the other pages and marks the current one", async () => {
     const handlers = mount({ view: "skills" });
     fireEvent.click(screen.getByText("模型"));
-    expect(handlers.onNavigate).toHaveBeenCalledWith("models");
+    expect(handlers.onNavigate).toHaveBeenCalledWith("model");
     expect(screen.getByText("技能").closest("button")?.getAttribute("aria-current")).toBe("page");
   });
 

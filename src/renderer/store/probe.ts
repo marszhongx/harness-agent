@@ -21,6 +21,8 @@ export type ProbeState = {
   run: (provider: string, models: string[]) => Promise<void>;
   /** Drop the results of a provider that no longer exists. */
   forget: (provider: string) => void;
+  /** Drop the result of one model that was removed. */
+  forgetModel: (provider: string, model: string) => void;
 };
 
 export const useProbe = create<ProbeState>((set, get) => ({
@@ -77,6 +79,19 @@ export const useProbe = create<ProbeState>((set, get) => ({
         current: new Set([...state.current].filter((key) => !key.startsWith(prefix))),
       };
     }),
+
+  forgetModel: (provider, model) => {
+    const key = probeKey(provider, model);
+    set((state) => {
+      const results = new Map(state.results);
+      const running = new Set(state.running);
+      const current = new Set(state.current);
+      results.delete(key);
+      running.delete(key);
+      current.delete(key);
+      return { results, running, current };
+    });
+  },
 }));
 
 /** Imperative access from event handlers. */

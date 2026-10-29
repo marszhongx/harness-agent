@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ProviderSummary } from "../lib/agent";
 import { getModel } from "../store/model";
 import { getProbe, probeKey, useProbe } from "../store/probe";
@@ -27,6 +27,8 @@ export default function ModelTable({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState<PendingModel[]>([]);
   const pendingSeq = useRef(0);
+  const pendingEnd = useRef<HTMLTableRowElement>(null);
+  const pendingCount = useRef(0);
 
   const selectedModels = provider.models.filter((model) => selected.has(model.id));
   const allSelected = provider.models.length > 0 && selectedModels.length === provider.models.length;
@@ -38,6 +40,14 @@ export default function ModelTable({
     ...provider.models.map((model) => ({ kind: "saved" as const, model })),
     ...pending.map((draft) => ({ kind: "pending" as const, draft })),
   ];
+
+  // A new row goes below the table; make sure the dialog scrolls to it.
+  useEffect(() => {
+    if (pending.length > pendingCount.current) {
+      pendingEnd.current?.scrollIntoView?.({ block: "nearest" });
+    }
+    pendingCount.current = pending.length;
+  }, [pending.length]);
 
   const failure = (cause: unknown) => onError(cause instanceof Error ? cause.message : String(cause));
 
@@ -66,6 +76,7 @@ export default function ModelTable({
     onError(null);
     try {
       await getModel().removeModel(provider.id, modelId);
+      getProbe().forgetModel(provider.id, modelId);
     } catch (cause) {
       failure(cause);
     }
@@ -204,7 +215,11 @@ export default function ModelTable({
 
             const { draft } = row;
             return (
-              <tr key={`pending-${draft.key}`} className={ui.modelAddRow}>
+              <tr
+                key={`pending-${draft.key}`}
+                ref={draft.key === pending.at(-1)?.key ? pendingEnd : undefined}
+                className={ui.modelAddRow}
+              >
                 <td className={ui.modelCheck} />
                 <td className={ui.modelNameCell}>
                   <div className={ui.modelAddFields}>

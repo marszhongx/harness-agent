@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { agent, relativeTime, type SessionSummary } from "../lib/agent";
+import { useDialog } from "../store/dialog";
 import { getSession, useSession, useSessionSync } from "../store/session";
 import { useTranscript } from "../store/transcript";
 import layout from "../styles/layout.module.css";
@@ -16,7 +17,7 @@ import {
   TrashIcon,
 } from "./Icons";
 
-export type View = "chat" | "models" | "skills" | "settings";
+export type View = "chat" | "model" | "skills" | "settings";
 
 interface SidebarProps {
   view: View;
@@ -30,7 +31,7 @@ interface SidebarProps {
 }
 
 const NAV: Array<{ view: View; label: string; Icon: typeof ModelsIcon }> = [
-  { view: "models", label: "模型", Icon: ModelsIcon },
+  { view: "model", label: "模型", Icon: ModelsIcon },
   { view: "skills", label: "技能", Icon: SkillsIcon },
 ];
 
@@ -52,6 +53,10 @@ export default function Sidebar({
   const sessions = useSession((state) => state.list);
   // Only the busy flags: a streaming answer must not re-render the list.
   const busy = useTranscript((state) => state.busy);
+  // A background turn can be blocked on a dialog; mark its row even when the
+  // conversation is not the one on screen.
+  const waiting = useDialog((state) => state.queue);
+  const waitingCount = [...waiting.values()].reduce((count, list) => count + list.length, 0);
   useSessionSync();
   const [collapsed, setCollapsed] = useState(false);
   const [pending, setPending] = useState<SessionSummary | null>(null);
@@ -77,25 +82,33 @@ export default function Sidebar({
     };
   }, [flyout]);
 
-  const sessionItem = (session: SessionSummary, onPick: () => void) => (
-    <button
-      key={session.id}
-      type="button"
-      className={`${layout.session} ${session.id === sessionId ? layout.active : ""}`}
-      aria-current={session.id === sessionId ? "page" : undefined}
-      onClick={onPick}
-    >
-      <div className={layout.sessionTitle}>{session.title}</div>
-      {busy.get(session.id) ? (
-        <div className={layout.sessionRunning}>
-          <span className={layout.sessionDot} />
-          正在回答
-        </div>
-      ) : (
-        <div className={layout.sessionTime}>{relativeTime(session.updatedAt)}</div>
-      )}
-    </button>
-  );
+  const sessionItem = (session: SessionSummary, onPick: () => void) => {
+    const dialogs = waiting.get(session.id)?.length ?? 0;
+    return (
+      <button
+        key={session.id}
+        type="button"
+        className={`${layout.session} ${session.id === sessionId ? layout.active : ""}`}
+        aria-current={session.id === sessionId ? "page" : undefined}
+        onClick={onPick}
+      >
+        <div className={layout.sessionTitle}>{session.title}</div>
+        {dialogs > 0 ? (
+          <div className={layout.sessionWaiting}>
+            <span className={layout.sessionDot} />
+            待确认
+          </div>
+        ) : busy.get(session.id) ? (
+          <div className={layout.sessionRunning}>
+            <span className={layout.sessionDot} />
+            正在回答
+          </div>
+        ) : (
+          <div className={layout.sessionTime}>{relativeTime(session.updatedAt)}</div>
+        )}
+      </button>
+    );
+  };
 
   return (
     <aside className={`${layout.sidebar} ${collapsed ? layout.sidebarCollapsed : ""}`}>
@@ -159,12 +172,13 @@ export default function Sidebar({
             <button
               type="button"
               className={`${layout.navItem} ${flyout ? layout.active : ""}`}
-              aria-label="最近会话"
+              aria-label={waitingCount > 0 ? `最近会话，${waitingCount} 个待确认` : "最近会话"}
               aria-expanded={flyout}
-              title="最近会话"
+              title={waitingCount > 0 ? "有会话等待确认" : "最近会话"}
               onClick={() => setFlyout((open) => !open)}
             >
               <HistoryIcon />
+              {waitingCount > 0 ? <span className={layout.railBadge} aria-hidden="true" /> : null}
             </button>
 
             {flyout ? (

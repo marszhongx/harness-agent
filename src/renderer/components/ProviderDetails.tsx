@@ -15,10 +15,14 @@ export default function ProviderDetails({
   onClose: () => void;
 }) {
   const [baseUrl, setBaseUrl] = useState(provider.baseUrl);
+  const [api, setApi] = useState(provider.api);
   const [apiKey, setApiKey] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => setBaseUrl(provider.baseUrl), [provider.baseUrl]);
+  useEffect(() => {
+    setBaseUrl(provider.baseUrl);
+    setApi(provider.api);
+  }, [provider.baseUrl, provider.api]);
 
   const failure = (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause));
 
@@ -28,7 +32,7 @@ export default function ProviderDetails({
     try {
       await getModel().saveProvider(provider.id, {
         baseUrl: baseUrl.trim(),
-        api: provider.api,
+        api: api.trim(),
         apiKey,
       });
       setApiKey("");
@@ -68,6 +72,15 @@ export default function ProviderDetails({
                   onChange={(event) => setBaseUrl(event.currentTarget.value)}
                   placeholder="https://host/v1"
                   required
+                />
+              </label>
+              <label className={ui.field}>
+                <span>api</span>
+                <input
+                  className={ui.fieldInput}
+                  value={api}
+                  onChange={(event) => setApi(event.currentTarget.value)}
+                  placeholder="openai-completions"
                 />
               </label>
               <label className={ui.field}>

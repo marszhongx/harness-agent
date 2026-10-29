@@ -12,6 +12,7 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 import { agent, type ModelInfo, type ProviderSummary } from "../lib/agent";
+import { useAgentStream } from "./agent-stream";
 
 export type ModelRef = {
   provider: string;
@@ -86,14 +87,30 @@ export const useModel = create<ModelState>((set, get) => {
 export const getModel = useModel.getState;
 
 /**
- * Mount where the catalogue is used. `force` is for the models page, which
- * should show what is on disk rather than a catalogue loaded hours ago; the
- * composer only needs the data once.
+ * Re-read the catalogue when main reports a change.
+ *
+ * `models.json` is pi's file and can be edited outside this app. The main
+ * process watches the file and sends a generic agent event; every mounted user
+ * of the catalogue shares one listener through `useAgentStream`.
  */
-export function useModelSync(force = false): void {
+function startModelEventSync(): () => void {
+  return agent().onEvent((event) => {
+    if (event.type !== "models_changed") return;
+    void getModel()
+      .load(true)
+      .catch(() => undefined);
+  });
+}
+
+/**
+ * Mount where the catalogue is used. Every mount reads the file so returning
+ * to chat does not show a catalogue loaded before an external edit.
+ */
+export function useModelSync(): void {
   useEffect(() => {
     void getModel()
-      .load(force)
+      .load(true)
       .catch(() => undefined);
-  }, [force]);
+  }, []);
+  useAgentStream(startModelEventSync);
 }

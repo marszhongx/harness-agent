@@ -38,7 +38,7 @@ describe("ModelPage", () => {
     expect(document.body.textContent).not.toContain("secret");
   });
 
-  it("edits the provider baseUrl and key", async () => {
+  it("edits the provider baseUrl, api and key", async () => {
     let current: ProviderSummary[] = [provider];
     const mock = installMockAgent({ providers: [provider] });
     mock.api.modelsList = vi.fn(async () => current);
@@ -59,6 +59,9 @@ describe("ModelPage", () => {
     fireEvent.change(within(dialog).getByLabelText("baseUrl"), {
       target: { value: "http://new/v1" },
     });
+    fireEvent.change(within(dialog).getByLabelText("api"), {
+      target: { value: "anthropic-messages" },
+    });
     fireEvent.change(within(dialog).getByLabelText("apiKey"), {
       target: { value: "secret-2" },
     });
@@ -67,7 +70,7 @@ describe("ModelPage", () => {
     await waitFor(() =>
       expect(mock.api.saveProvider).toHaveBeenCalledWith("hifox", {
         baseUrl: "http://new/v1",
-        api: "openai-completions",
+        api: "anthropic-messages",
         apiKey: "secret-2",
       }),
     );
@@ -172,6 +175,50 @@ describe("ModelPage", () => {
     await waitFor(() => expect(mock.api.addModel).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(within(dialog).queryAllByLabelText("新模型 id")).toHaveLength(0));
     expect(within(dialog).getByText("second")).toBeTruthy();
+  });
+
+  it("drops a model's probe result when the model is removed", async () => {
+    let current: ProviderSummary[] = [provider];
+    const mock = installMockAgent({ providers: [provider] });
+    mock.api.modelsList = vi.fn(async () => current);
+    mock.api.removeModel = vi.fn(async () => {
+      current = [{ ...provider, models: [] }];
+    });
+    useProbe.setState({
+      results: new Map([[probeKey("hifox", "glm-5.3-flash"), { ok: true }]]),
+    });
+    render(<ModelPage />);
+    await screen.findByText("hifox");
+
+    fireEvent.click(screen.getByRole("button", { name: "详情" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("status", { name: "可用" })).toBeTruthy();
+
+    fireEvent.click(within(dialog).getByLabelText("移除模型 glm-5.3-flash"));
+    await waitFor(() => expect(mock.api.removeModel).toHaveBeenCalledWith("hifox", "glm-5.3-flash"));
+    await waitFor(() =>
+      expect(useProbe.getState().results.has(probeKey("hifox", "glm-5.3-flash"))).toBe(false),
+    );
+  });
+
+  it("scrolls a newly added pending row into view", async () => {
+    const scrollIntoView = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    try {
+      installMockAgent({ providers: [provider] });
+      render(<ModelPage />);
+      await screen.findByText("hifox");
+
+      fireEvent.click(screen.getByRole("button", { name: "详情" }));
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(within(dialog).getByLabelText("添加模型"));
+
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
   });
 
   it("requires a second click before removing a provider", async () => {

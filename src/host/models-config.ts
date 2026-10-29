@@ -58,6 +58,72 @@ export function modelsPath(env: NodeJS.ProcessEnv = process.env): string {
   return join(agentDir(env), "models.json");
 }
 
+function authPath(env: NodeJS.ProcessEnv): string {
+  return join(agentDir(env), "auth.json");
+}
+
+/**
+ * Provider ids with a stored credential in `auth.json`.
+ *
+ * Pi resolves credentials before `models.json`, so a provider can be usable
+ * even when its `models.json` entry has no `apiKey`. The app only needs to know
+ * that a credential exists; it never reads the secret.
+ */
+function storedCredentialProviders(env: NodeJS.ProcessEnv): Set<string> {
+  try {
+    const parsed = JSON.parse(readFileSync(authPath(env), "utf8")) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return new Set();
+    return new Set(
+      Object.entries(parsed)
+        .filter(([, value]) => value !== null && typeof value === "object")
+        .map(([id]) => id),
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+/** Pi's primary environment variable for providers with a standard name. */
+const PROVIDER_ENV_KEYS: Record<string, string[]> = {
+  anthropic: ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_OAUTH_TOKEN"],
+  azure: ["AZURE_OPENAI_API_KEY"],
+  google: ["GEMINI_API_KEY"],
+  "github-copilot": ["COPILOT_GITHUB_TOKEN"],
+  huggingface: ["HF_TOKEN"],
+  "kimi-coding": ["KIMI_API_KEY"],
+  "moonshotai-cn": ["MOONSHOT_API_KEY"],
+  moonshotai: ["MOONSHOT_API_KEY"],
+  "qwen-token-plan-individual": ["QWEN_TOKEN_PLAN_API_KEY"],
+  "vercel-ai-gateway": ["AI_GATEWAY_API_KEY"],
+};
+
+function providerEnvKeys(id: string): string[] {
+  return PROVIDER_ENV_KEYS[id] ?? [`${id.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_API_KEY`];
+}
+
+/** Literal, `$NAME`/`${NAME}` interpolation, or a `!command`; empty means unset. */
+function hasConfiguredApiKey(value: unknown, env: NodeJS.ProcessEnv): boolean {
+  if (typeof value !== "string") return false;
+  const key = value.trim();
+  if (!key) return false;
+  if (!key.startsWith("$")) return true;
+  const name = key.startsWith("${") && key.endsWith("}") ? key.slice(2, -1) : key.slice(1);
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) && Boolean(env[name]?.trim());
+}
+
+function hasCredential(
+  id: string,
+  provider: ProviderEntry | undefined,
+  env: NodeJS.ProcessEnv,
+  stored: Set<string>,
+): boolean {
+  return (
+    stored.has(id) ||
+    hasConfiguredApiKey(provider?.apiKey, env) ||
+    providerEnvKeys(id).some((name) => Boolean(env[name]?.trim()))
+  );
+}
+
 export function readModelsConfig(env: NodeJS.ProcessEnv = process.env): ModelsConfig {
   try {
     const parsed = JSON.parse(readFileSync(modelsPath(env), "utf8")) as unknown;
@@ -69,12 +135,16 @@ export function readModelsConfig(env: NodeJS.ProcessEnv = process.env): ModelsCo
   return { providers: {} };
 }
 
-export function summarize(config: ModelsConfig): ProviderSummary[] {
+export function summarize(
+  config: ModelsConfig,
+  env: NodeJS.ProcessEnv = process.env,
+  stored = storedCredentialProviders(env),
+): ProviderSummary[] {
   return Object.entries(config.providers ?? {}).map(([id, provider]) => ({
     id,
     baseUrl: String(provider?.baseUrl ?? ""),
     api: String(provider?.api ?? ""),
-    hasKey: typeof provider?.apiKey === "string" && provider.apiKey.length > 0,
+    hasKey: hasCredential(id, provider, env, stored),
     models: (provider?.models ?? []).map((model) => ({
       id: String(model?.id ?? ""),
       name: String(model?.name ?? model?.id ?? ""),
@@ -86,7 +156,7 @@ export function summarize(config: ModelsConfig): ProviderSummary[] {
 }
 
 export function listProviders(env: NodeJS.ProcessEnv = process.env): ProviderSummary[] {
-  return summarize(readModelsConfig(env));
+  return summarize(readModelsConfig(env), env);
 }
 
 /** A model the agent can be switched to, in the shape the UI wants. */
@@ -97,8 +167,9 @@ export type AvailableModel = ModelInfo;
  *
  * pi can list its own available models, but only from a running process; asking
  * it for the list used to mean keeping a pi process alive just to fill a
- * dropdown. The rule pi applies is "the provider has credentials", and that is
- * `apiKey` being set here, so the same list can be derived from the file.
+ * dropdown. The rule pi applies is "the provider has credentials"; this reads
+ * the same sources it does (`auth.json`, `models.json`, provider env vars)
+ * without keeping a process alive just to fill a dropdown.
  */
 export function availableModels(env: NodeJS.ProcessEnv = process.env): AvailableModel[] {
   return listProviders(env)
@@ -141,7 +212,7 @@ export function upsertProvider(
   if (input.apiKey !== undefined && input.apiKey !== "") next.apiKey = input.apiKey;
   config.providers[name] = next;
   writeModelsConfig(config, env);
-  return summarize(config);
+  return summarize(config, env);
 }
 
 export function removeProvider(id: string, env: NodeJS.ProcessEnv = process.env): ProviderSummary[] {
@@ -150,7 +221,7 @@ export function removeProvider(id: string, env: NodeJS.ProcessEnv = process.env)
     delete config.providers[id];
     writeModelsConfig(config, env);
   }
-  return summarize(config);
+  return summarize(config, env);
 }
 
 export function addModel(
@@ -176,7 +247,7 @@ export function addModel(
     });
   }
   writeModelsConfig(config, env);
-  return summarize(config);
+  return summarize(config, env);
 }
 
 export function removeModel(
@@ -190,7 +261,7 @@ export function removeModel(
     provider.models = provider.models.filter((entry) => entry?.id !== modelId);
     writeModelsConfig(config, env);
   }
-  return summarize(config);
+  return summarize(config, env);
 }
 
 function writeModelsConfig(config: ModelsConfig, env: NodeJS.ProcessEnv): void {

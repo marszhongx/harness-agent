@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   addModel,
+  availableModels,
   listProviders,
   modelsPath,
   readModelsConfig,
@@ -145,5 +146,70 @@ describe("models.json editing", () => {
     const [provider] = listProviders(env);
     expect(provider.hasKey).toBe(true);
     expect(JSON.stringify(provider)).not.toContain("secret");
+  });
+
+  it("offers the models of a provider with an inline key", () => {
+    seed();
+    expect(availableModels(env).map((model) => `${model.provider}/${model.id}`)).toEqual([
+      "hifox/glm-5.3-flash",
+    ]);
+  });
+
+  it("accepts a credential stored in auth.json", () => {
+    writeFileSync(
+      modelsPath(env),
+      JSON.stringify({
+        providers: {
+          openai: {
+            baseUrl: "https://api.openai.com/v1",
+            api: "openai-responses",
+            models: [{ id: "gpt-x", name: "GPT X" }],
+          },
+        },
+      }),
+    );
+    expect(availableModels(env)).toEqual([]);
+
+    writeFileSync(join(dir, "auth.json"), JSON.stringify({ openai: { type: "api_key", key: "stored" } }));
+    expect(availableModels(env).map((model) => model.id)).toEqual(["gpt-x"]);
+    expect(listProviders(env)[0]?.hasKey).toBe(true);
+  });
+
+  it("resolves an environment placeholder in models.json", () => {
+    writeFileSync(
+      modelsPath(env),
+      JSON.stringify({
+        providers: {
+          gateway: {
+            baseUrl: "https://gateway/v1",
+            api: "openai-completions",
+            apiKey: "$" + "{GATEWAY_KEY}",
+            models: [{ id: "gateway-model" }],
+          },
+        },
+      }),
+    );
+    expect(availableModels(env)).toEqual([]);
+    expect(availableModels({ ...env, GATEWAY_KEY: "secret" }).map((model) => model.id)).toEqual([
+      "gateway-model",
+    ]);
+  });
+
+  it("falls back to a provider's standard environment variable", () => {
+    writeFileSync(
+      modelsPath(env),
+      JSON.stringify({
+        providers: {
+          custom: {
+            baseUrl: "https://custom/v1",
+            api: "openai-completions",
+            models: [{ id: "custom-model" }],
+          },
+        },
+      }),
+    );
+    expect(availableModels({ ...env, CUSTOM_API_KEY: "secret" }).map((model) => model.id)).toEqual([
+      "custom-model",
+    ]);
   });
 });

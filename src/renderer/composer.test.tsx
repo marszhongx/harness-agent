@@ -165,6 +165,22 @@ describe("Composer", () => {
     await waitFor(() => expect(mock.api.setDefaultModel).toHaveBeenCalled());
   });
 
+  it("refreshes the catalogue when main reports that models.json changed", async () => {
+    const { mock } = mount({ models, sessions: [session] });
+    await screen.findByText("glm-5.3-flash");
+
+    const refreshed = vi.fn(async () => [
+      ...models,
+      { provider: "hifox", id: "glm-5.4", name: "glm-5.4", contextWindow: 1310720 },
+    ]);
+    mock.api.models = refreshed;
+    mock.emitEvent({ type: "models_changed" });
+
+    await waitFor(() => expect(refreshed).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByTestId("model-chip"));
+    expect(await screen.findByText("glm-5.4")).toBeTruthy();
+  });
+
   it("targets the current conversation, and no id on the new page", async () => {
     const { mock } = mount(
       { models, sessions: [session], defaultModel: { provider: "hifox", id: "glm-5.3-flash" } },

@@ -18,7 +18,7 @@ export default function ModelPage() {
   const detailProvider = detailsId ? providers.find((provider) => provider.id === detailsId) : undefined;
   // Opening the page should show the file as it is now, not a catalogue that
   // happened to be loaded at launch.
-  useModelSync(true);
+  useModelSync();
 
   const failure = (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause));
 

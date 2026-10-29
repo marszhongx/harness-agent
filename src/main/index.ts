@@ -17,11 +17,13 @@
 import { randomUUID } from "node:crypto";
 import {
   existsSync,
+  type FSWatcher,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
   rmSync,
+  watch,
   writeFileSync,
 } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -49,6 +51,7 @@ import {
   addModel,
   availableModels,
   listProviders,
+  modelsPath,
   removeModel,
   removeProvider,
   upsertProvider,
@@ -64,6 +67,7 @@ import { mintSessionId } from "../host/session-id.ts";
 import { SessionStore } from "../host/session-store.ts";
 import { listSkills, readSkillFile, removeSkill } from "../host/skills.ts";
 import { readTranscript } from "../host/transcript-file.ts";
+import { attachExistingTranscript } from "../host/transcript-sync.ts";
 import { checkWorkspace, ensureDefaultWorkspace } from "../host/workspace.ts";
 import type { AgentStatus, ModelProbe, SessionSummary, SettingsSnapshot } from "../shared/contract.ts";
 import { IpcAction } from "../shared/ipc-action.ts";
@@ -181,10 +185,30 @@ const reloadOnSettle = new Set<string>();
 function hostFor(sessionId: string): AgentHost | undefined {
   return hosts.get(sessionId);
 }
+
+/**
+ * `models.json` belongs to pi and can be edited while the app is open. Watching
+ * the directory (not the file) survives the tmp+rename writes this app uses.
+ */
+function watchModels(): void {
+  const directory = dirname(modelsPath());
+  try {
+    if (!existsSync(directory)) mkdirSync(directory, { recursive: true });
+    modelsWatcher = watch(directory, { persistent: false }, (_event, filename) => {
+      if (filename && filename.toString() !== "models.json") return;
+      send(IpcAction.agent.event, { type: "models_changed" });
+    });
+    modelsWatcher.on("error", (error) => logger.error("models watcher failed", error));
+  } catch (error) {
+    logger.error("models watcher failed", error);
+  }
+}
 /** Set once the user has accepted interrupting work, so the second quit goes through. */
 let quitConfirmed = false;
 let window: BrowserWindow | null = null;
 let tray: Tray | null = null;
+/** Watches pi's models file so an external edit reaches the renderer. */
+let modelsWatcher: FSWatcher | null = null;
 
 /** A dialog waiting for the renderer, keyed by the id the renderer sees. */
 interface PendingDialogEntry {
@@ -358,8 +382,7 @@ function forwardToRenderer(sessionId: string, message: WorkerToHost): void {
   if (message.type === "settled") {
     store.touch(sessionId);
     // The transcript exists only after the first message; record it now that it does.
-    const file = hostFor(sessionId)?.sessionFile;
-    if (file && existsSync(file)) store.attachFile(sessionId, file);
+    attachExistingTranscript(store, sessionId, hostFor(sessionId)?.sessionFile);
   }
   if (message.type === "notify" && message.level === "error") {
     new Notification({ title: "Agent", body: message.message }).show();
@@ -376,6 +399,7 @@ function forwardToRenderer(sessionId: string, message: WorkerToHost): void {
  */
 function askUser(sessionId: string, dialog: DialogRequest): Promise<UiAnswer> {
   if (!window || window.isDestroyed()) return Promise.resolve({ kind: "cancel" });
+  notifyWaiting(sessionId);
   const requestId = randomUUID();
   return new Promise<UiAnswer>((resolve) => {
     // The worker enforces its own timeout; this one keeps a stale card from
@@ -392,6 +416,31 @@ function askUser(sessionId: string, dialog: DialogRequest): Promise<UiAnswer> {
     pendingDialogs.set(requestId, { sessionId, resolve, timer });
     send(IpcAction.agent.dialog, { sessionId, requestId, dialog });
   });
+}
+
+/**
+ * Bring a background approval to the front when the window is not focused.
+ *
+ * The sidebar marks the conversation too; this is the case where the window is
+ * in another app and the user would otherwise never see that a turn is blocked.
+ */
+function notifyWaiting(sessionId: string): void {
+  if (!window || window.isDestroyed() || window.isFocused()) return;
+  const title = store.get(sessionId)?.title;
+  try {
+    const notification = new Notification({
+      title: "需要确认",
+      body: title ? `「${title}」正在等待你的确认` : "有一个会话正在等待你的确认",
+    });
+    notification.on("click", () => {
+      if (!window || window.isDestroyed()) return;
+      window.show();
+      window.focus();
+    });
+    notification.show();
+  } catch {
+    // Notifications are best-effort: the sidebar badge remains.
+  }
 }
 
 /**
@@ -865,7 +914,7 @@ async function startHost(sessionId: string): Promise<AgentHost> {
       // one deliberately, so a session with no choice stays visibly unchosen.
       // The path pi reports is planned, not necessarily written yet: keep it only
       // once the transcript exists, so the index never points at nothing.
-      if (sessionFile && existsSync(sessionFile)) store.attachFile(sessionId, sessionFile);
+      attachExistingTranscript(store, sessionId, sessionFile);
     },
     askUser: (_requestId, dialog) => askUser(sessionId, dialog),
     onTurnEnd: ({ reason }) => {
@@ -876,6 +925,9 @@ async function startHost(sessionId: string): Promise<AgentHost> {
       // The host is already replacing the worker, so it will read the new config.
       reloadOnSettle.delete(sessionId);
       cancelDialogs(sessionId);
+      // A failed first turn has no normal `settled` path above. If pi wrote a
+      // partial transcript before dying, keep it in the index now.
+      attachExistingTranscript(store, sessionId, hostFor(sessionId)?.sessionFile);
       send(IpcAction.agent.event, { type: "settled", sessionId });
     },
     onRestart: (info) => {
@@ -1042,6 +1094,7 @@ app.whenReady().then(async () => {
     registerIpc();
     createWindow();
     createTray();
+    watchModels();
     // Nothing starts a worker at launch: the list, transcript, and catalogue
     // come from disk; pi starts on the first message.
     if (process.platform === "darwin") app.dock?.show();
@@ -1118,6 +1171,8 @@ app.on("before-quit", (event) => {
 });
 
 app.on("will-quit", () => {
+  modelsWatcher?.close();
+  modelsWatcher = null;
   // Not awaited on purpose: pi exits by itself when its stdin closes, so even if
   // the app disappears first nothing is left running. This is the polite path.
   for (const live of hosts.values()) void live.dispose();
