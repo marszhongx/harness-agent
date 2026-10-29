@@ -126,8 +126,15 @@ export const logger = {
  * Values are `key=value` rather than JSON: a person reads the log far more often
  * than a machine does, and `grep session=cab8d009` works either way.
  */
+function localTimestamp(now: Date): string {
+  const pad = (value: number, size = 2) => String(value).padStart(size, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${pad(now.getMilliseconds(), 3)}`;
+}
+
 function formatLine(level: LogLevel, message: string): string {
-  const time = new Date().toISOString().replace("T", " ").slice(0, 23);
+  // Local time, the same clock the daily file name uses. A UTC timestamp in a
+  // locally named archive is off by the timezone offset at the day boundary.
+  const time = localTimestamp(new Date());
   // Padding is trimmed at the end of the whole line, so a line without meta does
   // not keep the gap the columns were aligned for.
   return `${time}  ${level.padEnd(5)} ${currentTag.padEnd(6)} ${message.padEnd(16)}`;

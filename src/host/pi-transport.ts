@@ -211,14 +211,6 @@ export class PiTransport {
     return this.requestData<{ id?: string }>({ type: "set_model", provider, modelId });
   }
 
-  /**
-   * Full message history of the current session, including the system prompt.
-   * Shape is pi's `AgentMessage`; callers narrow it themselves.
-   */
-  getMessages() {
-    return this.requestData<{ messages: unknown[] }>({ type: "get_messages" });
-  }
-
   /** Resolves once the prompt is accepted; events stream afterwards. */
   prompt(message: string, images?: Array<{ data: string; mimeType: string }>) {
     return this.requestData<{ disposition: string }>({

@@ -50,12 +50,14 @@ export default function ChatPage({ sessionId, onEnsureSession }: ChatPageProps) 
   }, []);
 
   // A new conversation starts at its end, whatever the last one was doing.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sessionId is the trigger; the effect only mutates a ref
   useEffect(() => {
     stick.current = true;
   }, [sessionId]);
 
   // Lines grow by a few characters at a time, so this runs often; it is a single
   // assignment, and skipping it while the user reads keeps the view still.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: items is the trigger; the effect only reads refs and the DOM
   useLayoutEffect(() => {
     const element = scroller.current;
     if (element && stick.current) element.scrollTop = element.scrollHeight;

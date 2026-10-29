@@ -19,7 +19,6 @@
  */
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { basename, dirname } from "node:path";
-import { mintSessionId } from "./session-id.ts";
 
 export interface SessionEntry {
   id: string;
@@ -54,17 +53,9 @@ export class SessionStore {
     this.#file = read(path);
   }
 
-  /** Most recently active first, optionally only those of one workspace. */
-  list(workspacePath?: string): SessionEntry[] {
-    const entries = workspacePath
-      ? this.#file.sessions.filter((entry) => entry.workspacePath === workspacePath)
-      : this.#file.sessions;
-    return [...entries].sort((a, b) => b.updatedAt - a.updatedAt);
-  }
-
-  /** Add a session and make it current. */
-  create(workspacePath?: string): string {
-    return this.createWithId(mintSessionId(), workspacePath);
+  /** Most recently active first. */
+  list(): SessionEntry[] {
+    return [...this.#file.sessions].sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
   /**
@@ -112,26 +103,6 @@ export class SessionStore {
     entry.updatedAt = Date.now();
     if (entry.title === UNTITLED && firstMessage) entry.title = titleFrom(firstMessage);
     this.#write();
-  }
-
-  /**
-   * Drop index entries that never held a message.
-   *
-   * pi tells us the transcript path when a session is created but writes the
-   * file only on the first message, so an app quit before typing leaves an entry
-   * pointing at nothing. `exists` is injected because the store does not touch
-   * the filesystem.
-   */
-  pruneEmpty(exists: (sessionFile: string) => boolean): number {
-    const before = this.#file.sessions.length;
-    this.#file.sessions = this.#file.sessions.filter((entry) => {
-      if (entry.title !== UNTITLED) return true;
-      return entry.sessionFile ? exists(entry.sessionFile) : false;
-    });
-    const removed = before - this.#file.sessions.length;
-    if (removed === 0) return 0;
-    this.#write();
-    return removed;
   }
 
   /**

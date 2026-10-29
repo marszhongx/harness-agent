@@ -7,7 +7,7 @@
   width: var(--sidebar-width);
   flex-shrink: 0;
   background: hsl(var(--menu-background));
-  border-right: 1px solid hsl(var(--text-color) / 0.12);
+  border-right: var(--border-width-base) solid hsl(var(--text-color) / 0.12);
   transition: width 0.28s ease;
 }
 
@@ -44,8 +44,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: var(--height-base);
+  height: var(--height-base);
   border-radius: var(--border-radius-base);
   color: hsl(var(--text-color-secondary));
   -webkit-app-region: no-drag;
@@ -97,11 +97,11 @@
 }
 .tag {
   flex-shrink: 0;
-  padding: 1px var(--padding-xs);
+  padding: var(--hairline) var(--padding-xs);
   border-radius: var(--border-radius-pill);
-  border: 1px solid var(--border-color-base);
+  border: var(--border-width-base) solid var(--border-color-base);
   font-size: var(--font-size-xxs);
-  line-height: 16px;
+  line-height: var(--line-height-compact);
   letter-spacing: 0.02em;
   white-space: nowrap;
   color: hsl(var(--text-color-secondary) / 0.8);
@@ -121,14 +121,14 @@
   top: 0;
   left: calc(100% + var(--padding-xxs));
   z-index: var(--zindex-modal);
-  width: 232px;
+  width: var(--sidebar-flyout-width);
   max-height: 60vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--padding-2xs);
   padding: var(--padding-xs);
-  border: 1px solid var(--border-color-base);
+  border: var(--border-width-base) solid var(--border-color-base);
   border-radius: var(--border-radius-lg);
   background: hsl(var(--popover-background));
   box-shadow: var(--shadow-2);
@@ -156,7 +156,7 @@
 .session-list {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--hairline);
   overflow-y: auto;
   min-height: 0;
 }
@@ -176,8 +176,8 @@
   right: var(--padding-xxs);
   top: 50%;
   transform: translateY(-50%);
-  width: 24px;
-  height: 24px;
+  width: var(--height-sm);
+  height: var(--height-sm);
   opacity: 0;
 }
 .session-row:hover .session-delete,
@@ -187,6 +187,7 @@
 .session-delete:hover {
   color: hsl(var(--error-color));
 }
+/* biome-ignore lint/style/noDescendingSpecificity: the base row rule is overridden by .session-row.active .session */
 .session {
   display: flex;
   flex-direction: column;
@@ -222,8 +223,8 @@
   color: hsl(var(--primary-color-strong));
 }
 .session-dot {
-  width: 5px;
-  height: 5px;
+  width: var(--dot-size-sm);
+  height: var(--dot-size-sm);
   border-radius: var(--border-radius-pill);
   background: currentColor;
   animation: session-pulse 1.1s ease-in-out infinite;
@@ -258,7 +259,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: var(--padding-xs);
-  height: 44px;
+  height: var(--touch-target);
   padding: 0 var(--padding-sm);
   -webkit-app-region: drag;
 }
@@ -301,7 +302,7 @@
 .sidebarCollapsed .logo {
   display: none;
 }
-/* A 64px column has room for one icon per row and nothing else. */
+/* The collapsed rail has room for one icon per row and nothing else. */
 .sidebarCollapsed .sidebar-head {
   justify-content: center;
   padding-inline: 0;
@@ -313,8 +314,8 @@
 .sidebarCollapsed .nav-item {
   justify-content: center;
   gap: 0;
-  width: 36px;
-  height: 36px;
+  width: var(--rail-item-size);
+  height: var(--rail-item-size);
   padding: 0;
 }
 .sidebarCollapsed .sidebar-foot {

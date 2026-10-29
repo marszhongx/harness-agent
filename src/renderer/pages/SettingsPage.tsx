@@ -36,7 +36,7 @@ export default function SettingsPage() {
                 value={state.theme}
                 onChange={(event) => {
                   const theme = event.currentTarget.value as "system" | "light" | "dark";
-                  void agent().setTheme(theme).then(setState);
+                  void agent().setTheme(theme).then(load);
                 }}
               >
                 <option value="system">跟随系统</option>
@@ -54,7 +54,7 @@ export default function SettingsPage() {
                   type="checkbox"
                   checked={state.launchAtLogin}
                   onChange={(event) => {
-                    void agent().setLaunchAtLogin(event.currentTarget.checked).then(setState);
+                    void agent().setLaunchAtLogin(event.currentTarget.checked).then(load);
                   }}
                 />
                 <span>登录时自动启动</span>
@@ -80,7 +80,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   className={ui.btn}
-                  onClick={() => void agent().chooseWorkspace().then(setState)}
+                  onClick={() => void agent().chooseWorkspace().then(load)}
                 >
                   更改
                 </button>
@@ -88,7 +88,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     className={ui.btn}
-                    onClick={() => void agent().resetWorkspace().then(setState)}
+                    onClick={() => void agent().resetWorkspace().then(load)}
                   >
                     恢复默认
                   </button>

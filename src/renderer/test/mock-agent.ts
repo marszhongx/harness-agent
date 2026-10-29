@@ -22,7 +22,6 @@ export interface MockAgent {
   api: AgentApi;
   emitEvent: (event: AgentEvent) => void;
   emitDialog: (dialog: DialogRequest, sessionId?: string) => void;
-  emitReady: (payload: { sessionId: string | null; model: string | null }) => void;
 }
 
 const status = (overrides: Partial<AgentStatus> = {}): AgentStatus => ({
@@ -84,7 +83,6 @@ export function installMockAgent(options: MockOptions = {}): MockAgent {
   const dialogListeners: Array<
     (payload: { sessionId: string; requestId: string; dialog: DialogRequest }) => void
   > = [];
-  const readyListeners: Array<(payload: { sessionId: string | null; model: string | null }) => void> = [];
 
   const sessions = options.sessions ?? [session()];
   const defaultSessionId = options.status?.sessionId ?? "session-1";
@@ -105,10 +103,10 @@ export function installMockAgent(options: MockOptions = {}): MockAgent {
     }),
     history: vi.fn(async () => options.history ?? []),
     models: vi.fn(async () => options.models ?? []),
-    setModel: vi.fn(async () => true),
+    setModel: vi.fn(async () => undefined),
     defaultModel: vi.fn(async () => options.defaultModel ?? null),
     defaultThinkingLevel: vi.fn(async () => options.defaultThinkingLevel ?? "max"),
-    setDefaultModel: vi.fn(async (provider: string, id: string) => ({ provider, id })),
+    setDefaultModel: vi.fn(async () => undefined),
     modelsList: vi.fn(async () => options.providers ?? []),
     saveProvider: vi.fn(async () => undefined),
     removeProvider: vi.fn(async () => undefined),
@@ -120,24 +118,24 @@ export function installMockAgent(options: MockOptions = {}): MockAgent {
     revealSkill: vi.fn(async () => undefined),
     readSkill: vi.fn(async () => options.skillText ?? "---\nname: pdf-tools\n---\n\n# body\n"),
     settings: vi.fn(async () => settings(options.settings)),
-    setTheme: vi.fn(async () => settings(options.settings)),
-    setLaunchAtLogin: vi.fn(async () => settings(options.settings)),
-    chooseWorkspace: vi.fn(async () => settings(options.settings)),
-    resetWorkspace: vi.fn(async () => settings(options.settings)),
+    setTheme: vi.fn(async () => undefined),
+    setLaunchAtLogin: vi.fn(async () => undefined),
+    chooseWorkspace: vi.fn(async () => undefined),
+    resetWorkspace: vi.fn(async () => undefined),
     revealPath: vi.fn(async () => undefined),
     prompt: vi.fn(async (sessionId: string) => {
       remember(sessionId);
       return "request-1";
     }),
-    setThinkingLevel: vi.fn(async () => true),
+    setThinkingLevel: vi.fn(async () => undefined),
     abort: vi.fn(async () => undefined),
-    chooseDraftWorkspace: vi.fn(async () => ({ workspacePath: "/tmp/picked-workspace" })),
+    chooseDraftWorkspace: vi.fn(async () => undefined),
     newSession: vi.fn(async () => {
       eventSessionId = "draft-1";
       return "draft-1";
     }),
     listSessions: vi.fn(async () => sessions),
-    deleteSession: vi.fn(async (sessionId: string) => sessions.filter((entry) => entry.id !== sessionId)),
+    deleteSession: vi.fn(async () => undefined),
     answer: vi.fn(async () => true),
     onEvent: (handler) => {
       eventListeners.push(handler);
@@ -145,10 +143,6 @@ export function installMockAgent(options: MockOptions = {}): MockAgent {
     },
     onDialog: (handler) => {
       dialogListeners.push(handler);
-      return () => undefined;
-    },
-    onReady: (handler) => {
-      readyListeners.push(handler);
       return () => undefined;
     },
   };
@@ -165,9 +159,6 @@ export function installMockAgent(options: MockOptions = {}): MockAgent {
     emitDialog: (dialog, sessionId = eventSessionId) => {
       const payload = { sessionId, requestId: `dialog-${++dialogSeq}`, dialog };
       for (const listener of dialogListeners) listener(payload);
-    },
-    emitReady: (payload) => {
-      for (const listener of readyListeners) listener(payload);
     },
   };
 }

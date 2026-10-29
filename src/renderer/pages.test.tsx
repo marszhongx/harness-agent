@@ -367,10 +367,7 @@ describe("SkillsPage", () => {
 describe("SettingsPage", () => {
   it("shows the workspace and versions, and changes the theme", async () => {
     const mock = installMockAgent();
-    mock.api.setTheme = vi.fn(async (theme: "system" | "light" | "dark") => ({
-      ...(await mock.api.settings()),
-      theme,
-    }));
+    mock.api.setTheme = vi.fn(async () => undefined);
     render(<SettingsPage />);
 
     expect(await screen.findByText("0.0.0")).toBeTruthy();
@@ -384,11 +381,18 @@ describe("SettingsPage", () => {
 
   it("changes and resets the default workspace", async () => {
     const mock = installMockAgent();
-    mock.api.chooseWorkspace = vi.fn(async () => ({
-      ...(await mock.api.settings()),
-      workspacePath: "/tmp/picked-workspace",
-      workspaceIsCustom: true,
-    }));
+    let current = { ...(await mock.api.settings()) };
+    mock.api.settings = vi.fn(async () => current);
+    mock.api.chooseWorkspace = vi.fn(async () => {
+      current = {
+        ...current,
+        workspacePath: "/tmp/picked-workspace",
+        workspaceIsCustom: true,
+      };
+    });
+    mock.api.resetWorkspace = vi.fn(async () => {
+      current = { ...current, workspacePath: "/tmp/workspace", workspaceIsCustom: false };
+    });
     render(<SettingsPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "更改" }));

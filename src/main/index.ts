@@ -185,7 +185,6 @@ function hostFor(sessionId: string): AgentHost | undefined {
 let quitConfirmed = false;
 let window: BrowserWindow | null = null;
 let tray: Tray | null = null;
-let quitting = false;
 
 /** A dialog waiting for the renderer, keyed by the id the renderer sees. */
 interface PendingDialogEntry {
@@ -195,11 +194,6 @@ interface PendingDialogEntry {
   timer: NodeJS.Timeout | null;
 }
 const pendingDialogs = new Map<string, PendingDialogEntry>();
-/**
- * Last transcript the worker pushed. The renderer reads it once on load instead
- * of racing the `history` event, which can fire before its listeners exist.
- */
-
 /** Where the app keeps its own state; smoke runs get their own tree. */
 function appBase(): string {
   return smoke ? join(app.getPath("temp"), `harness-agent-smoke-${process.pid}`) : app.getPath("userData");
@@ -564,9 +558,8 @@ function registerIpc(): void {
   ipcMain.handle(IpcAction.agent.models, () => availableModels());
   ipcMain.handle(IpcAction.agent.defaultModel, () => resolveDefaultModel());
   ipcMain.handle(IpcAction.agent.setDefaultModel, (_event, nextProvider: string, nextId: string) => {
-    if (typeof nextProvider !== "string" || typeof nextId !== "string") return resolveDefaultModel();
+    if (typeof nextProvider !== "string" || typeof nextId !== "string") return;
     writeDefaultModel({ provider: nextProvider, id: nextId });
-    return resolveDefaultModel();
   });
 
   ipcMain.handle(
@@ -591,9 +584,9 @@ function registerIpc(): void {
    */
   ipcMain.handle(IpcAction.agent.deleteSession, async (_event, sessionId: string) => {
     const id = typeof sessionId === "string" ? sessionId : "";
-    if (!id) return store.list();
+    if (!id) return;
     const entry = store.remove(id);
-    if (!entry) return store.list();
+    if (!entry) return;
 
     cancelDialogs(id);
     const live = hosts.get(id);
@@ -612,11 +605,7 @@ function registerIpc(): void {
       }
     }
     logger.info("session deleted", { sessionId: id });
-    return store.list();
   });
-  // Switching reopens the transcript pi already has under that id; the new
-  // worker's `history` event redraws it. The id arrives in interior form and
-  // `AgentHost` brands it for pi.
   /**
    * Pick the folder for the conversation about to start. Only the draft can be
    * changed: an existing conversation keeps the directory pi opened it in.
@@ -628,7 +617,6 @@ function registerIpc(): void {
       title: "选择这次对话使用的工作目录",
     });
     if (!picked.canceled && picked.filePaths.length > 0) drafts.chooseWorkspace(picked.filePaths[0]);
-    return { workspacePath: drafts.workspacePath(defaultWorkspace()) };
   });
   ipcMain.handle(IpcAction.agent.newSession, () => {
     // A fresh draft: id minted, nothing written to the index, nothing in the
@@ -698,32 +686,28 @@ function registerIpc(): void {
     const next = theme === "light" || theme === "dark" ? theme : "system";
     appSettings.update({ theme: next });
     applyTheme(next);
-    return settingsSnapshot();
   });
   ipcMain.handle(IpcAction.settings.setLaunchAtLogin, (_event, enabled: boolean) => {
     appSettings.update({ launchAtLogin: enabled === true });
     applyLaunchAtLogin(enabled === true);
-    return settingsSnapshot();
   });
   ipcMain.handle(IpcAction.workspace.choose, async () => {
     const picked = await dialog.showOpenDialog({
       properties: ["openDirectory", "createDirectory"],
       title: "选择新会话使用的工作目录",
     });
-    if (picked.canceled || picked.filePaths.length === 0) return settingsSnapshot();
+    if (picked.canceled || picked.filePaths.length === 0) return;
     setDefaultWorkspace(picked.filePaths[0]);
-    return settingsSnapshot();
   });
   ipcMain.handle(IpcAction.workspace.reset, () => {
     setDefaultWorkspace(null);
-    return settingsSnapshot();
   });
   ipcMain.handle(IpcAction.path.reveal, (_event, path: string) => {
     if (typeof path === "string" && path) void shell.openPath(path);
   });
 
   ipcMain.handle(IpcAction.agent.setThinkingLevel, (_event, sessionId: string, level: string) => {
-    if (typeof level !== "string") return false;
+    if (typeof level !== "string") return;
     // Recorded even without a worker; it is applied when the session next runs.
     if (!sessionId || drafts.holds(sessionId)) {
       drafts.chooseThinkingLevel(sessionId, level);
@@ -731,18 +715,16 @@ function registerIpc(): void {
       store.setThinkingLevel(sessionId, level);
       hostFor(sessionId)?.setThinkingLevel(level);
     }
-    return true;
   });
 
   ipcMain.handle(IpcAction.agent.setModel, (_event, sessionId: string, provider: string, model: string) => {
-    if (typeof provider !== "string" || typeof model !== "string") return false;
+    if (typeof provider !== "string" || typeof model !== "string") return;
     if (!sessionId || drafts.holds(sessionId)) {
       drafts.chooseModel(sessionId, { provider, id: model });
     } else {
       store.setModel(sessionId, provider, model);
       hostFor(sessionId)?.setModel(provider, model);
     }
-    return true;
   });
 
   // The renderer answers a dialog. The pending promise in `askUser` resolves
@@ -757,7 +739,6 @@ function registerIpc(): void {
   });
 }
 
-/** The session the app opens with: the last active one, else a fresh one. */
 /**
  * A conversation that exists but is not in the index yet.
  *
@@ -822,12 +803,6 @@ function applyLaunchAtLogin(enabled: boolean): void {
   }
 }
 
-/**
- * Point the agent at another directory.
- *
- * Sessions are per workspace (pi scopes them to the cwd), so the whole session
- * store is swapped: the old workspace's list stays on disk untouched.
- */
 /**
  * Change where *new* sessions run. Existing sessions keep the directory they
  * were created in — that is their identity, not a setting.
@@ -1067,11 +1042,8 @@ app.whenReady().then(async () => {
     registerIpc();
     createWindow();
     createTray();
-    // No worker at launch unless a saved conversation has to be shown: its
-    // transcript lives in pi's hands, so only pi can produce it. A draft starts
-    // no process at all.
-    // Nothing is started here: the conversation list, the transcript and the
-    // model catalogue all come from disk, and pi starts on the first message.
+    // Nothing starts a worker at launch: the list, transcript, and catalogue
+    // come from disk; pi starts on the first message.
     if (process.platform === "darwin") app.dock?.show();
     // Bring the window forward: launching from a terminal leaves the terminal
     // focused on macOS. Screenshot runs stay in the background on purpose — they
@@ -1107,7 +1079,6 @@ app.whenReady().then(async () => {
         void promptAgent(id, "用一句话说明你能帮我做什么，然后停。");
       }, 1200);
     }
-    send(IpcAction.agent.ready, { sessionId: null, model: resolveDefaultModel()?.id ?? null });
   } catch (error) {
     logger.error("startup failed", error);
     console.error("startup failed:", error);
@@ -1130,7 +1101,6 @@ app.on("window-all-closed", () => {
  */
 app.on("before-quit", (event) => {
   if (quitConfirmed || workingSessions.size === 0) {
-    quitting = true;
     return;
   }
   event.preventDefault();
@@ -1154,5 +1124,4 @@ app.on("will-quit", () => {
   hosts.clear();
   for (const probe of probeHosts) void probe.dispose();
   probeHosts.clear();
-  void quitting;
 });

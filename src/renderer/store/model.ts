@@ -71,7 +71,8 @@ export const useModel = create<ModelState>((set, get) => {
     },
 
     setDefaultModel: async (provider, id) => {
-      set({ defaultModel: await agent().setDefaultModel(provider, id) });
+      await agent().setDefaultModel(provider, id);
+      set({ defaultModel: { provider, id } });
     },
 
     saveProvider: (id, input) => write(() => agent().saveProvider(id, input)),

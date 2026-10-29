@@ -112,5 +112,3 @@ export type UiAnswer =
   | { kind: "confirm"; confirmed: boolean }
   | { kind: "value"; value: string }
   | { kind: "cancel" };
-
-export const DIALOG_METHODS = new Set(["confirm", "select", "input", "editor"]);

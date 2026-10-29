@@ -30,7 +30,6 @@ export const IpcAction = {
     // main -> renderer
     event: "agent:event",
     dialog: "agent:dialog",
-    ready: "agent:ready",
   },
   models: {
     list: "models:list",

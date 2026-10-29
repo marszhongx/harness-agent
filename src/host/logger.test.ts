@@ -25,6 +25,12 @@ describe("logger", () => {
     expect(first).toMatch(
       /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} {2}info +main +started +version=1\.0\.0 attempt=2$/,
     );
+    // The timestamp is local time, matching the daily file name.
+    const now = new Date();
+    const pad = (value: number) => String(value).padStart(2, "0");
+    expect(first.startsWith(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`)).toBe(
+      true,
+    );
     // A line without meta carries no trailing padding.
     expect(second).toMatch(/warn +main +slow$/);
   });

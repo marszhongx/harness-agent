@@ -74,11 +74,11 @@ export interface AgentApi {
   status: (sessionId?: string) => Promise<AgentStatus>;
   history: (sessionId?: string) => Promise<TranscriptItem[] | null>;
   models: () => Promise<ModelInfo[]>;
-  setModel: (sessionId: string | null, provider: string, model: string) => Promise<boolean>;
+  setModel: (sessionId: string | null, provider: string, model: string) => Promise<void>;
   defaultModel: () => Promise<{ provider: string; id: string } | null>;
   /** Thinking level a conversation starts with on this machine. */
   defaultThinkingLevel: () => Promise<string>;
-  setDefaultModel: (provider: string, id: string) => Promise<{ provider: string; id: string } | null>;
+  setDefaultModel: (provider: string, id: string) => Promise<void>;
   modelsList: () => Promise<ProviderSummary[]>;
   saveProvider: (id: string, input: { baseUrl: string; api: string; apiKey?: string }) => Promise<void>;
   removeProvider: (id: string) => Promise<void>;
@@ -94,24 +94,23 @@ export interface AgentApi {
   /** The whole SKILL.md, for the details dialog. */
   readSkill: (dir: string) => Promise<string | null>;
   settings: () => Promise<SettingsSnapshot>;
-  setTheme: (theme: "system" | "light" | "dark") => Promise<SettingsSnapshot>;
-  setLaunchAtLogin: (enabled: boolean) => Promise<SettingsSnapshot>;
-  chooseWorkspace: () => Promise<SettingsSnapshot>;
-  resetWorkspace: () => Promise<SettingsSnapshot>;
+  setTheme: (theme: "system" | "light" | "dark") => Promise<void>;
+  setLaunchAtLogin: (enabled: boolean) => Promise<void>;
+  chooseWorkspace: () => Promise<void>;
+  resetWorkspace: () => Promise<void>;
   revealPath: (path: string) => Promise<void>;
   prompt: (sessionId: string, message: string, images?: PromptImage[]) => Promise<string | null>;
-  setThinkingLevel: (sessionId: string | null, level: string) => Promise<boolean>;
+  setThinkingLevel: (sessionId: string | null, level: string) => Promise<void>;
   abort: (sessionId: string) => Promise<void>;
   newSession: () => Promise<string>;
   /** Choose the folder for the conversation that is about to start. */
-  chooseDraftWorkspace: () => Promise<{ workspacePath: string }>;
+  chooseDraftWorkspace: () => Promise<void>;
   listSessions: () => Promise<SessionSummary[]>;
-  /** Delete a conversation, its transcript included. Returns the new list. */
-  deleteSession: (sessionId: string) => Promise<SessionSummary[]>;
+  /** Delete a conversation, its transcript included. */
+  deleteSession: (sessionId: string) => Promise<void>;
   answer: (requestId: string, answer: UiAnswer) => Promise<boolean>;
   onEvent: (handler: (message: AgentEvent) => void) => () => void;
   onDialog: (
     handler: (payload: { sessionId: string; requestId: string; dialog: DialogRequest }) => void,
   ) => () => void;
-  onReady: (handler: (payload: { sessionId: string | null; model: string | null }) => void) => () => void;
 }

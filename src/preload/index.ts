@@ -38,23 +38,19 @@ const api: AgentApi = {
     ipcRenderer.invoke(IpcAction.agent.defaultModel) as Promise<{ provider: string; id: string } | null>,
   defaultThinkingLevel: () => ipcRenderer.invoke(IpcAction.agent.defaultThinkingLevel) as Promise<string>,
   setDefaultModel: (provider: string, id: string) =>
-    ipcRenderer.invoke(IpcAction.agent.setDefaultModel, provider, id) as Promise<{
-      provider: string;
-      id: string;
-    } | null>,
+    ipcRenderer.invoke(IpcAction.agent.setDefaultModel, provider, id) as Promise<void>,
   setModel: (sessionId: string | null, provider: string, model: string) =>
-    ipcRenderer.invoke(IpcAction.agent.setModel, sessionId, provider, model) as Promise<boolean>,
+    ipcRenderer.invoke(IpcAction.agent.setModel, sessionId, provider, model) as Promise<void>,
   prompt: (sessionId: string, message: string, images?: PromptImage[]) =>
     ipcRenderer.invoke(IpcAction.agent.prompt, sessionId, message, images) as Promise<string | null>,
   setThinkingLevel: (sessionId: string | null, level: string) =>
-    ipcRenderer.invoke(IpcAction.agent.setThinkingLevel, sessionId, level) as Promise<boolean>,
+    ipcRenderer.invoke(IpcAction.agent.setThinkingLevel, sessionId, level) as Promise<void>,
   abort: (sessionId: string) => ipcRenderer.invoke(IpcAction.agent.abort, sessionId) as Promise<void>,
   newSession: () => ipcRenderer.invoke(IpcAction.agent.newSession) as Promise<string>,
-  chooseDraftWorkspace: () =>
-    ipcRenderer.invoke(IpcAction.agent.chooseDraftWorkspace) as Promise<{ workspacePath: string }>,
+  chooseDraftWorkspace: () => ipcRenderer.invoke(IpcAction.agent.chooseDraftWorkspace) as Promise<void>,
   listSessions: () => ipcRenderer.invoke(IpcAction.agent.listSessions) as Promise<SessionSummary[]>,
   deleteSession: (sessionId: string) =>
-    ipcRenderer.invoke(IpcAction.agent.deleteSession, sessionId) as Promise<SessionSummary[]>,
+    ipcRenderer.invoke(IpcAction.agent.deleteSession, sessionId) as Promise<void>,
   // ── models ────────────────────────────────────────────────────────────────
   modelsList: () => ipcRenderer.invoke(IpcAction.models.list) as Promise<ProviderSummary[]>,
   saveProvider: (id: string, input: { baseUrl: string; api: string; apiKey?: string }) =>
@@ -76,11 +72,11 @@ const api: AgentApi = {
   // ── settings ──────────────────────────────────────────────────────────────
   settings: () => ipcRenderer.invoke(IpcAction.settings.get) as Promise<SettingsSnapshot>,
   setTheme: (theme: "system" | "light" | "dark") =>
-    ipcRenderer.invoke(IpcAction.settings.setTheme, theme) as Promise<SettingsSnapshot>,
+    ipcRenderer.invoke(IpcAction.settings.setTheme, theme) as Promise<void>,
   setLaunchAtLogin: (enabled: boolean) =>
-    ipcRenderer.invoke(IpcAction.settings.setLaunchAtLogin, enabled) as Promise<SettingsSnapshot>,
-  chooseWorkspace: () => ipcRenderer.invoke(IpcAction.workspace.choose) as Promise<SettingsSnapshot>,
-  resetWorkspace: () => ipcRenderer.invoke(IpcAction.workspace.reset) as Promise<SettingsSnapshot>,
+    ipcRenderer.invoke(IpcAction.settings.setLaunchAtLogin, enabled) as Promise<void>,
+  chooseWorkspace: () => ipcRenderer.invoke(IpcAction.workspace.choose) as Promise<void>,
+  resetWorkspace: () => ipcRenderer.invoke(IpcAction.workspace.reset) as Promise<void>,
   revealPath: (path: string) => ipcRenderer.invoke(IpcAction.path.reveal, path) as Promise<void>,
 
   onEvent: (handler: (message: AgentEvent) => void) => subscribe(IpcAction.agent.event, handler),
@@ -89,8 +85,6 @@ const api: AgentApi = {
 
   onDialog: (handler: (payload: { sessionId: string; requestId: string; dialog: DialogRequest }) => void) =>
     subscribe(IpcAction.agent.dialog, handler),
-  onReady: (handler: (payload: { sessionId: string | null; model: string | null }) => void) =>
-    subscribe(IpcAction.agent.ready, handler),
 };
 
 contextBridge.exposeInMainWorld("agent", api);

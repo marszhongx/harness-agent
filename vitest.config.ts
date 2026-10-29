@@ -20,7 +20,7 @@ export default defineConfig({
       reportsDirectory: "coverage",
       // Only the parts a unit test can reach. `src/main` and `src/preload` need a
       // running Electron app; the smoke scripts cover those paths instead.
-      include: ["src/host/**/*.ts", "src/renderer/**/*.ts", "src/renderer/**/*.tsx"],
+      include: ["src/host/**/*.ts", "src/renderer/**/*.ts", "src/renderer/**/*.tsx", "src/shared/**/*.ts"],
       // Floors, not targets: they sit just under today's numbers so a change that
       // silently drops coverage fails instead of passing quietly.
       thresholds: { statements: 86, branches: 74, functions: 84, lines: 89 },
@@ -29,6 +29,8 @@ export default defineConfig({
         "src/**/*.test.tsx",
         "src/host/protocol.ts",
         "src/host/pi-transport.ts",
+        // Types only; the channel map is covered by ipc-action.test.ts.
+        "src/shared/contract.ts",
         "src/host/agent-host.ts",
         "src/host/worker.ts",
         "src/renderer/main.tsx",

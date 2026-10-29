@@ -78,16 +78,56 @@
   --height-lg: 32px;
 
   /* ── app layout ──────────────────────────────────────────────────── */
+  --border-width-base: 1px;
+  --border-width-strong: 2px;
+  --hairline: 1px;
+  --dot-size-sm: 5px;
+  --dot-size: 6px;
+  --attachment-size: 56px;
+  --attachment-remove-size: 18px;
+  --touch-target: 44px;
+  --line-height-compact: 16px;
+  --underline-offset: 3px;
+  --chip-height: 26px;
+  --send-size: 30px;
+  --menu-row-height: 30px;
+  --icon-button-sm: 18px;
+  --rail-item-size: 36px;
+  --dialog-width: 720px;
+  --setting-label-width: 132px;
+  --field-min-width: 120px;
+  --field-wide-min-width: 200px;
+  --field-max-width: 240px;
+  --model-id-max-width: 320px;
+  --tool-output-max-height: 260px;
+  --composer-max-height: 200px;
+  --bubble-max-size: 180px;
+  --menu-min-width: 240px;
+  --menu-max-width: 340px;
+  --menu-max-height: 320px;
+
   --sidebar-width: 248px;
   --sidebar-collapsed-width: 64px;
+  --sidebar-flyout-width: 232px;
   --mac-chrome-height: 28px;
   --content-max: 1080px;
+  --model-check-column: 28px;
+  --model-context-column: 92px;
+  --model-actions-column: 64px;
   --page-gutter: 24px;
   --page-bottom: 40px;
 
   /* ── elevation and overlays ──────────────────────────────────────── */
   --shadow-2: 0 3px 6px -4px hsl(0 0% 0% / 0.12), 0 6px 16px 0 hsl(0 0% 0% / 0.08);
   --shadow-pop: 0 18px 48px hsl(0 0% 0% / 0.18);
+  --shadow-composer: 0 1px 2px hsl(var(--text-color) / 0.04);
+  --shadow-composer-focus: 0 2px 10px hsl(var(--text-color) / 0.07);
+  --shadow-menu: 0 12px 32px hsl(var(--text-color) / 0.16);
+  --attachment-offset: -6px;
+  --scrollbar-width: 10px;
+  --scrollbar-thumb-border: 3px;
+  --spinner-size: 10px;
+  --spinner-border: 3px;
   --scrim: hsl(0 0% 0% / 0.28);
   --zindex-modal: 1000;
 
