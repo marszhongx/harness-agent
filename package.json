@@ -15,7 +15,7 @@
     "smoke": "node --experimental-strip-types --no-warnings scripts/smoke.ts",
     "smoke:host": "node --experimental-strip-types --no-warnings scripts/smoke-host.ts",
     "smoke:resume": "node --experimental-strip-types --no-warnings scripts/smoke-resume.ts",
-    "pack:dir": "vite build --logLevel warn && electron-packager . harness-agent --platform=darwin --arch=arm64 --icon=assets/icon.icns --out=dist --overwrite --prune --no-asar --ignore=\"^/dist($|/)\" --ignore=\"^/scripts($|/)\" --ignore=\"^/biome.json$\" --ignore=\"^/tsconfig.json$\" --ignore=\"^/vite.config.ts$\" --ignore=\"^/.gitignore$\"",
+    "pack:dir": "vite build --logLevel warn && electron-packager . harness-agent --platform=darwin --arch=arm64 --icon=assets/icon.icns --out=dist --overwrite --prune --no-asar --ignore=\"^/dist($|/)\" --ignore=\"^/scripts($|/)\" --ignore=\"^/biome.json$\" --ignore=\"^/tsconfig.json$\" --ignore=\"^/vite.config.ts$\" --ignore=\"^/.gitignore$\" --ignore=\"^/coverage($|/)\" --ignore=\"^/\\.husky($|/)\" --ignore=\"^/AGENTS\\.md$\" --ignore=\"^/commitlint\\.config\\.js$\" --ignore=\"^/vitest\\.config\\.ts$\" --ignore=\"^/src/.*\\.test\\.(ts|tsx)$\" --ignore=\"^/src/renderer/test($|/)\" --ignore=\"^/\\.npmrc$\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "verify": "tsc --noEmit && biome check && vitest run --coverage",
